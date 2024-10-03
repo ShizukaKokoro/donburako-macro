@@ -17,7 +17,7 @@ pub fn output_parse(input: ParseStream) -> Result<TokenStream> {
         stmts.push(quote! {
             let mut con_clone = con.clone_container().unwrap();
             con_clone.store(#stmt);
-            cmap.add_container(self_.outputs()[#num].clone(), exec_id, con_clone)
+            op.add_container(self_.outputs()[#num].clone(), exec_id, con_clone)
                 .await
                 .unwrap();
         });
@@ -40,7 +40,7 @@ mod tests {
         let expected = quote! {
             let mut con_clone = con.clone_container().unwrap();
             con_clone.store("1 -> 3");
-            cmap.add_container(self_.outputs()[0usize].clone(), con_clone)
+            op.add_container(self_.outputs()[0usize].clone(), exec_id, con_clone)
                 .await
                 .unwrap();
         }
@@ -57,22 +57,22 @@ mod tests {
         let expected = quote! {
             let mut con_clone = con.clone_container().unwrap();
                 con_clone.store(42);
-                cmap.add_container(self_.outputs()[0usize].clone(), con_clone)
+                op.add_container(self_.outputs()[0usize].clone(), exec_id, con_clone)
                     .await
                     .unwrap();
                 let mut con_clone = con.clone_container().unwrap();
                 con_clone.store("0 -> 1");
-                cmap.add_container(self_.outputs()[1usize].clone(), con_clone)
+                op.add_container(self_.outputs()[1usize].clone(), exec_id, con_clone)
                     .await
                     .unwrap();
                 let mut con_clone = con.clone_container().unwrap();
                 con_clone.store("0 -> 2");
-                cmap.add_container(self_.outputs()[2usize].clone(), con_clone)
+                op.add_container(self_.outputs()[2usize].clone(), exec_id, con_clone)
                     .await
                     .unwrap();
                 let mut con_clone = con.clone_container().unwrap();
                 con_clone.store("0 -> 3");
-                cmap.add_container(self_.outputs()[3usize].clone(), con_clone)
+                op.add_container(self_.outputs()[3usize].clone(), exec_id, con_clone)
                     .await
                     .unwrap();
         }

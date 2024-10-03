@@ -20,7 +20,7 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
                     let ty = ty.clone();
                     let num = stmts.len();
                     stmts.push(quote! {
-                        let mut con = cmap.get_container(self_.inputs()[#num].clone(), exec_id).await.unwrap();
+                        let mut con = op.get_container(self_.inputs()[#num].clone(), exec_id).await.unwrap();
                         let #pat: #ty = con.take().unwrap();
                     });
                 }
@@ -44,7 +44,7 @@ mod tests {
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
-            let mut con = cmap.get_container(&self_.inputs()[0usize]).await.unwrap();
+            let mut con = op.get_container(self_.inputs()[0usize].clone(), exec_id).await.unwrap();
             let arg_to0: &str = con.take().unwrap();
         }
         .to_string();
@@ -59,9 +59,9 @@ mod tests {
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
-            let mut con = cmap.get_container(&self_.inputs()[0usize]).await.unwrap();
+            let mut con = op.get_container(self_.inputs()[0usize].clone(), exec_id).await.unwrap();
             let arg_0to1_int: i32 = con.take().unwrap();
-            let mut con = cmap.get_container(&self_.inputs()[1usize]).await.unwrap();
+            let mut con = op.get_container(self_.inputs()[1usize].clone(), exec_id).await.unwrap();
             let arg_0to1_str: &str = con.take().unwrap();
         }
         .to_string();
