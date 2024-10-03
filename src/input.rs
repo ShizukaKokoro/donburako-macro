@@ -20,7 +20,7 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
                     let ty = ty.clone();
                     let num = stmts.len();
                     stmts.push(quote! {
-                        let mut con = cmap.get_container(&self_.inputs()[#num]).await.unwrap();
+                        let mut con = cmap.get_container(self_.inputs()[#num].clone(), exec_id).await.unwrap();
                         let #pat: #ty = con.take().unwrap();
                     });
                 }
