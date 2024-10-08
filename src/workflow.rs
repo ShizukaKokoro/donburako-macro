@@ -37,6 +37,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_workflow_impl() {
@@ -45,9 +46,9 @@ mod tests {
         };
         let result = workflow_impl(input).to_string();
         let expected = quote! {
-            let wf_id = WorkflowId::new("sum");
+            let wf_id = donburako::workflow::WorkflowId::new("sum");
             let (start, end) = op.get_start_end_edges(&wf_id);
-            let id = ExecutorId::default();
+            let id = donburako::operator::ExecutorId::default();
             op.start_workflow(id, wf_id).await;
             for (i, edge) in start.iter().enumerate() {
                 let con = op
