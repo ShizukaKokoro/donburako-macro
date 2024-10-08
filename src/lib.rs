@@ -7,12 +7,14 @@
 mod branch;
 mod first;
 mod input;
+mod node_func;
 mod output;
 mod workflow;
 
 use crate::branch::branch_impl;
 use crate::first::first_impl;
 use crate::input::input_impl;
+use crate::node_func::node_func_impl;
 use crate::output::output_impl;
 use crate::workflow::workflow_impl;
 use proc_macro::TokenStream;
@@ -55,4 +57,12 @@ pub fn first(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn workflow(tokens: TokenStream) -> TokenStream {
     workflow_impl(tokens.into()).into()
+}
+
+/// ノードの関数を定義するマクロ
+///
+/// ノードの関数を定義するコードを生成する。
+#[proc_macro]
+pub fn node_func(tokens: TokenStream) -> TokenStream {
+    node_func_impl(tokens.into()).into()
 }
