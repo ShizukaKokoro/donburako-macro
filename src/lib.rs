@@ -5,10 +5,12 @@
 #![warn(missing_docs, rustdoc::missing_crate_level_docs, unused_results)]
 
 mod branch;
+mod first;
 mod input;
 mod output;
 
 use crate::branch::branch_impl;
+use crate::first::first_impl;
 use crate::input::input_impl;
 use crate::output::output_impl;
 use proc_macro::TokenStream;
@@ -35,4 +37,12 @@ pub fn output(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn branch(tokens: TokenStream) -> TokenStream {
     branch_impl(tokens.into()).into()
+}
+
+/// 最初の入力を取り出すマクロ
+///
+/// 最初の入力を取り出すコードを生成する。
+#[proc_macro]
+pub fn first(tokens: TokenStream) -> TokenStream {
+    first_impl(tokens.into()).into()
 }
