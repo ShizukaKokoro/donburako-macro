@@ -4,9 +4,11 @@
 
 #![warn(missing_docs, rustdoc::missing_crate_level_docs, unused_results)]
 
+mod branch;
 mod input;
 mod output;
 
+use crate::branch::branch_impl;
 use crate::input::input_impl;
 use crate::output::output_impl;
 use proc_macro::TokenStream;
@@ -25,4 +27,12 @@ pub fn input(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn output(tokens: TokenStream) -> TokenStream {
     output_impl(tokens.into()).into()
+}
+
+/// 条件分岐を行うマクロ
+///
+/// 条件分岐を行うコードを生成する。
+#[proc_macro]
+pub fn branch(tokens: TokenStream) -> TokenStream {
+    branch_impl(tokens.into()).into()
 }
