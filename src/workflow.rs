@@ -23,7 +23,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                 .unwrap();
             op.add_container(edge.clone(), id, con).await.unwrap();
         }
-        op.wait_finish(id, 5).await;
+        op.wait_finish(id).await;
         for (i, edge) in end.iter().enumerate() {
             let con = op.get_container(edge.clone(), id).await.unwrap();
             op.add_container(self_.outputs()[i].clone(), exec_id, con)
@@ -57,7 +57,7 @@ mod tests {
                     .unwrap();
                 op.add_container(edge.clone(), id, con).await.unwrap();
             }
-            op.wait_finish(id, 5).await;
+            op.wait_finish(id).await;
             for (i, edge) in end.iter().enumerate() {
                 let con = op.get_container(edge.clone(), id).await.unwrap();
                 op.add_container(self_.outputs()[i].clone(), exec_id, con)
