@@ -8,11 +8,13 @@ mod branch;
 mod first;
 mod input;
 mod output;
+mod workflow;
 
 use crate::branch::branch_impl;
 use crate::first::first_impl;
 use crate::input::input_impl;
 use crate::output::output_impl;
+use crate::workflow::workflow_impl;
 use proc_macro::TokenStream;
 
 /// 入力をパースするマクロ
@@ -45,4 +47,12 @@ pub fn branch(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn first(tokens: TokenStream) -> TokenStream {
     first_impl(tokens.into()).into()
+}
+
+/// ワークフローを実行するマクロ
+///
+/// ワークフローを実行するコードを生成する。
+#[proc_macro]
+pub fn workflow(tokens: TokenStream) -> TokenStream {
+    workflow_impl(tokens.into()).into()
 }
