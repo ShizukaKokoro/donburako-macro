@@ -15,7 +15,8 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         let wf_id = donburako::workflow::WorkflowId::new(#id);
         let (start, end) = op.get_start_end_edges(&wf_id);
         let id = donburako::operator::ExecutorId::default();
-        op.start_workflow(id, wf_id).await;
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        op.start_workflow(id, wf_id, Some(tx)).await;
         for (i, edge) in start.iter().enumerate() {
             let con = op
                 .get_container(self_.inputs()[i].clone(), exec_id)
@@ -23,7 +24,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                 .unwrap();
             op.add_container(edge.clone(), id, con).await.unwrap();
         }
-        op.wait_finish(id).await;
+        rx.await.unwrap();
         for (i, edge) in end.iter().enumerate() {
             let con = op.get_container(edge.clone(), id).await.unwrap();
             op.add_container(self_.outputs()[i].clone(), exec_id, con)
@@ -49,7 +50,8 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("sum");
             let (start, end) = op.get_start_end_edges(&wf_id);
             let id = donburako::operator::ExecutorId::default();
-            op.start_workflow(id, wf_id).await;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            op.start_workflow(id, wf_id, Some(tx)).await;
             for (i, edge) in start.iter().enumerate() {
                 let con = op
                     .get_container(self_.inputs()[i].clone(), exec_id)
@@ -57,7 +59,7 @@ mod tests {
                     .unwrap();
                 op.add_container(edge.clone(), id, con).await.unwrap();
             }
-            op.wait_finish(id).await;
+            rx.await.unwrap();
             for (i, edge) in end.iter().enumerate() {
                 let con = op.get_container(edge.clone(), id).await.unwrap();
                 op.add_container(self_.outputs()[i].clone(), exec_id, con)
