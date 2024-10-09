@@ -31,7 +31,6 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                 .await
                 .unwrap();
         }
-        op.finish_containers(id).await;
     })
 }
 
@@ -66,7 +65,6 @@ mod tests {
                     .await
                     .unwrap();
             }
-            op.finish_containers(id).await;
         }
         .to_string();
         assert_eq!(result, expected);
