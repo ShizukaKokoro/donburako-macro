@@ -18,9 +18,8 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
                 Pat::Type(PatType { pat, ty, .. }) => {
                     let pat = pat.clone();
                     let ty = ty.clone();
-                    let num = stmts.len();
                     stmts.push(quote! {
-                        let mut con = op.get_container(self_.inputs()[#num].clone(), exec_id).await.unwrap();
+                        let mut con = cons.pop_front().unwrap();
                         let #pat: #ty = con.take().unwrap();
                     });
                 }
@@ -29,7 +28,10 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
             _ => return Err(Error::new_spanned(stmt, "expected local statement")),
         }
     }
-    Ok(quote! { #(#stmts)* })
+    Ok(quote! {
+        let mut cons = op.get_container(self_.inputs(), exec_id).await;
+        #(#stmts)*
+    })
 }
 
 #[cfg(test)]
@@ -44,7 +46,8 @@ mod tests {
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
-            let mut con = op.get_container(self_.inputs()[0usize].clone(), exec_id).await.unwrap();
+            let mut cons = op.get_container(self_.inputs(), exec_id).await;
+            let mut con = cons.pop_front().unwrap();
             let arg_to0: &str = con.take().unwrap();
         }
         .to_string();
@@ -59,9 +62,10 @@ mod tests {
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
-            let mut con = op.get_container(self_.inputs()[0usize].clone(), exec_id).await.unwrap();
+            let mut cons = op.get_container(self_.inputs(), exec_id).await;
+            let mut con = cons.pop_front().unwrap();
             let arg_0to1_int: i32 = con.take().unwrap();
-            let mut con = op.get_container(self_.inputs()[1usize].clone(), exec_id).await.unwrap();
+            let mut con = cons.pop_front().unwrap();
             let arg_0to1_str: &str = con.take().unwrap();
         }
         .to_string();

@@ -11,12 +11,8 @@ pub fn first_impl(tokens: TokenStream) -> TokenStream {
 
 pub fn first_parse(_: ParseStream) -> Result<TokenStream> {
     Ok(quote! {
-        for edge in self_.inputs() {
-            if let Some(mut con) = op.get_container(edge.clone(), exec_id).await {
-                op.add_container(self_.outputs()[0].clone(), exec_id, con).await.unwrap();
-                return;
-            }
-        }
+        let mut cons = op.get_container(self_.inputs(), exec_id).await;
+        op.add_container(self_.outputs()[0].clone(), exec_id, cons.pop_front().unwrap()).await.unwrap();
     })
 }
 
@@ -30,12 +26,8 @@ mod tests {
         let input = quote! {};
         let result = first_impl(input).to_string();
         let expected = quote! {
-            for edge in self_.inputs() {
-                if let Some(mut con) = op.get_container(edge.clone(), exec_id).await {
-                    op.add_container(self_.outputs()[0].clone(), exec_id, con).await.unwrap();
-                    return;
-                }
-            }
+            let mut cons = op.get_container(self_.inputs(), exec_id).await;
+            op.add_container(self_.outputs()[0].clone(), exec_id, cons.pop_front().unwrap()).await.unwrap();
         }
         .to_string();
         assert_eq!(result, expected,);
