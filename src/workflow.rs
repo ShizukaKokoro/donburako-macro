@@ -18,18 +18,10 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         op.start_workflow(id, wf_id, Some(tx)).await;
         let mut cons = op.get_container(self_.inputs(), exec_id).await;
-        for (i, edge) in start.iter().enumerate() {
-            let con = cons.pop_front().unwrap();
-            op.add_container(edge.clone(), id, con).await.unwrap();
-        }
+        op.add_container(start, id, cons).await.unwrap();
         rx.await.unwrap();
         let mut cons = op.get_container(end, id).await;
-        for (i, edge) in end.iter().enumerate() {
-            let con = cons.pop_front().unwrap();
-            op.add_container(self_.outputs()[i].clone(), exec_id, con)
-                .await
-                .unwrap();
-        }
+        op.add_container(self_.outputs(), exec_id, cons).await.unwrap();
     })
 }
 
@@ -51,18 +43,10 @@ mod tests {
             let (tx, rx) = tokio::sync::oneshot::channel();
             op.start_workflow(id, wf_id, Some(tx)).await;
             let mut cons = op.get_container(self_.inputs(), exec_id).await;
-            for (i, edge) in start.iter().enumerate() {
-                let con = cons.pop_front().unwrap();
-                op.add_container(edge.clone(), id, con).await.unwrap();
-            }
+            op.add_container(start, id, cons).await.unwrap();
             rx.await.unwrap();
             let mut cons = op.get_container(end, id).await;
-            for (i, edge) in end.iter().enumerate() {
-                let con = cons.pop_front().unwrap();
-                op.add_container(self_.outputs()[i].clone(), exec_id, con)
-                    .await
-                    .unwrap();
-        }
+            op.add_container(self_.outputs(), exec_id, cons).await.unwrap();
         }
         .to_string();
         assert_eq!(result, expected);

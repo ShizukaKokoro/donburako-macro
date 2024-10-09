@@ -16,12 +16,14 @@ pub fn branch_parse(_: ParseStream) -> Result<TokenStream> {
         }
         let mut con_clone = con.clone_container().unwrap();
         con_clone.store(());
+        let mut output_cons = std::collections::VecDeque::new();
+        output_cons.push_back(con_clone);
         if state {
-            op.add_container(self_.outputs()[0].clone(), exec_id, con_clone)
+            op.add_container(&vec![self_.outputs()[0].clone()], exec_id, output_cons)
                 .await
                 .unwrap();
         } else {
-            op.add_container(self_.outputs()[1].clone(), exec_id, con_clone)
+            op.add_container(&vec![self_.outputs()[1].clone()], exec_id, output_cons)
                 .await
                 .unwrap();
         }
@@ -43,12 +45,14 @@ mod tests {
             }
             let mut con_clone = con.clone_container().unwrap();
             con_clone.store(());
+            let mut output_cons = std::collections::VecDeque::new();
+            output_cons.push_back(con_clone);
             if state {
-                op.add_container(self_.outputs()[0].clone(), exec_id, con_clone)
+                op.add_container(&vec![self_.outputs()[0].clone()], exec_id, output_cons)
                     .await
                     .unwrap();
             } else {
-                op.add_container(self_.outputs()[1].clone(), exec_id, con_clone)
+                op.add_container(&vec![self_.outputs()[1].clone()], exec_id, output_cons)
                     .await
                     .unwrap();
             }
