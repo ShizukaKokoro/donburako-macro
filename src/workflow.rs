@@ -112,12 +112,35 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         }
     };
     let wf_name = wf_name.to_string();
+    let mut tl_stmt = for_block.body.stmts[1..].to_vec();
+    let break_if: Option<syn::Stmt> = match tl_stmt.last().unwrap() {
+        syn::Stmt::Expr(syn::Expr::If(expr_if), None) => {
+            let then_block = &expr_if.then_branch.stmts;
+            if then_block.len() == 1 {
+                match then_block.first().unwrap() {
+                    syn::Stmt::Expr(syn::Expr::Break(_), _) => {
+                        let mut expr_if = expr_if.clone();
+                        expr_if.then_branch.stmts = vec![parse_quote!(flag = true;)];
+                        Some(syn::Stmt::Expr(syn::Expr::If(expr_if), None))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    if let Some(break_if) = break_if {
+        let _ = tl_stmt.pop();
+        tl_stmt.push(break_if);
+    }
     for_block.body.stmts = vec![
         parse_quote!(let id = donburako::operator::ExecutorId::default();),
         parse_quote!(let (tx, rx) = tokio::sync::oneshot::channel();),
         parse_quote!(op.start_workflow(id, wf_id, Some(tx)).await;),
         parse_quote!(exec_ids.push((id, rx));),
-        parse_quote!(store!{id | start => #(#args),*};),
+        parse_quote!(store! {id | start => #(#args)=>*}),
     ];
     Ok(quote! {
         let wf_id = donburako::workflow::WorkflowId::new(#wf_name);
@@ -125,6 +148,16 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         let mut exec_ids = Vec::new();
         let (start, end) = op.get_start_end_edges(&wf_id);
         #for_block
+        let mut flag = false;
+        for (id, rx) in exec_ids {
+            if flag {
+                op.finish_workflow_by_execute_id(id).await;
+                continue;
+            }
+            rx.await.unwrap();
+            take!{id | end => #(#rtns)=>*}
+            #(#tl_stmt)*
+        }
     })
 }
 
