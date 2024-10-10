@@ -5,35 +5,17 @@
 #![warn(missing_docs, rustdoc::missing_crate_level_docs, unused_results)]
 
 mod branch;
+mod data;
 mod first;
-mod input;
 mod node_func;
-mod output;
 mod workflow;
 
 use crate::branch::branch_impl;
+use crate::data::{store_impl, take_impl};
 use crate::first::first_impl;
-use crate::input::input_impl;
 use crate::node_func::node_func_impl;
-use crate::output::output_impl;
 use crate::workflow::workflow_impl;
 use proc_macro::TokenStream;
-
-/// 入力をパースするマクロ
-///
-/// ユーザー定義関数に登録する関数の入力を行うコードを生成する。
-#[proc_macro]
-pub fn input(tokens: TokenStream) -> TokenStream {
-    input_impl(tokens.into()).into()
-}
-
-/// 出力をパースするマクロ
-///
-/// ユーザー定義関数に登録する関数の出力を行うコードを生成する。
-#[proc_macro]
-pub fn output(tokens: TokenStream) -> TokenStream {
-    output_impl(tokens.into()).into()
-}
 
 /// 条件分岐を行うマクロ
 ///
@@ -65,4 +47,20 @@ pub fn workflow(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn node_func(tokens: TokenStream) -> TokenStream {
     node_func_impl(tokens.into()).into()
+}
+
+/// データを取り出すマクロ
+///
+/// データを取り出すコードを生成する。
+#[proc_macro]
+pub fn take(tokens: TokenStream) -> TokenStream {
+    take_impl(tokens.into()).into()
+}
+
+/// データを格納するマクロ
+///
+/// データを格納するコードを生成する。
+#[proc_macro]
+pub fn store(tokens: TokenStream) -> TokenStream {
+    store_impl(tokens.into()).into()
 }
