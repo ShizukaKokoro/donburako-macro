@@ -7,11 +7,13 @@
 mod branch;
 mod data;
 mod first;
+mod ioput;
 mod node_func;
 
 use crate::branch::branch_impl;
 use crate::data::{store_impl, take_impl};
 use crate::first::first_impl;
+use crate::ioput::{input_impl, output_impl};
 use crate::node_func::node_func_impl;
 use proc_macro::TokenStream;
 
@@ -53,4 +55,20 @@ pub fn take(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn store(tokens: TokenStream) -> TokenStream {
     store_impl(tokens.into()).into()
+}
+
+/// 入力を取り出すマクロ
+///
+/// 標準的な入力を取り出すコードを生成する。
+#[proc_macro]
+pub fn input(tokens: TokenStream) -> TokenStream {
+    input_impl(tokens.into()).into()
+}
+
+/// 出力を格納するマクロ
+///
+/// 標準的な出力を格納するコードを生成する。
+#[proc_macro]
+pub fn output(tokens: TokenStream) -> TokenStream {
+    output_impl(tokens.into()).into()
 }
