@@ -189,6 +189,14 @@ mod tests {
                     &self.outputs
                 }
                 fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    if let Some(edge) = inputs.get(manage_cnt + 0usize) {
+                        if !edge.check_type::<i32>() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else {
+                        return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                    }
+
                     Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
@@ -246,6 +254,14 @@ mod tests {
                     &self.outputs
                 }
                 fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    if let Some(edge) = inputs.get(manage_cnt + 0usize) {
+                        if !edge.check_type::<i32>() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else {
+                        return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                    }
+
                     Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
@@ -301,6 +317,81 @@ mod tests {
                     &self.outputs
                 }
                 fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    if let Some(edge) = inputs.get(manage_cnt + 0usize) {
+                        if !edge.check_type::<i32>() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else {
+                        return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                    }
+
+                    Ok(std::sync::Arc::new(Node::new(
+                        inputs,
+                        manage_cnt,
+                        self.outputs,
+                        self.func,
+                        self.is_blocking,
+                        self.name,
+                        self.choice,
+                    )))
+                }
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_node_builder_impl4() {
+        let input = quote! {
+            fn add(a: i32, b: i32) -> i32 {
+                return a + b;
+            }
+        };
+        let result = node_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            struct AddBuilder {
+                outputs: Vec<Arc<donburako::edge::Edge>>,
+                func: Box<dyn for<'a> Fn(
+                    &'a Node,
+                    &'a donburako::operator::Operator,
+                    donburako::operator::ExecutorId,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                + Send
+                + Sync>,
+                is_blocking: bool,
+                choice: donburako::node::Choice,
+                name: &'static str,
+            }
+            impl donburako::node::NodeBuilder for AddBuilder {
+                fn new() -> Self {
+                    AddBuilder {
+                        outputs: vec![Arc::new(donburako::edge::Edge::new::<i32>())],
+                        func: node_func! {
+                            input!(a: i32, b: i32);
+                            output!(a + b);
+                        },
+                        is_blocking: false,
+                        choice: donburako::node::Choice::All,
+                        name: "add",
+                    }
+                }
+                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+                    &self.outputs
+                }
+                fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    if let Some(edge) = inputs.get(manage_cnt + 0usize) {
+                        if !edge.check_type::<i32>() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else if let Some(edge) = inputs.get(manage_cnt + 1usize) {
+                        if !edge.check_type::<i32>() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else {
+                        return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                    }
+
                     Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
