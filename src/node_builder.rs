@@ -128,9 +128,10 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             fn outputs(&self) -> &Vec<Arc<Edge>> {
                 &self.outputs
             }
-            fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+            fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
                 Node::new(
                     inputs,
+                    manage_cnt,
                     self.outputs,
                     self.func,
                     self.is_blocking,
@@ -187,9 +188,10 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
                     Node::new(
                         inputs,
+                        manage_cnt,
                         self.outputs,
                         self.func,
                         self.is_blocking,
@@ -243,9 +245,10 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
                     Node::new(
                         inputs,
+                        manage_cnt,
                         self.outputs,
                         self.func,
                         self.is_blocking,
@@ -297,9 +300,10 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
                     Node::new(
                         inputs,
+                        manage_cnt,
                         self.outputs,
                         self.func,
                         self.is_blocking,
