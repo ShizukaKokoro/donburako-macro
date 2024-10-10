@@ -94,4 +94,3 @@ pub fn node_builder(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 // TODO: ワークフロービルダーを構築するマクロを追加する
-// TODO: できれば、中身のないダミー関数を並列して生成して、ワークフローを組むときに使えるようにしたい

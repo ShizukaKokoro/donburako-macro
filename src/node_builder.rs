@@ -96,7 +96,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let func_name_str = func_name.to_string();
     Ok(quote! {
         struct #struct_name {
-            outputs: Vec<Arc<Edge>>,
+            outputs: Vec<Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a Node,
                 &'a donburako::operator::Operator,
@@ -105,7 +105,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             + Send
             + Sync>,
             is_blocking: bool,
-            choice: Choice,
+            choice: donburako::node::Choice,
             name: &'static str,
         }
         impl donburako::node::NodeBuilder for #struct_name {
@@ -113,7 +113,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 #struct_name {
                     outputs: vec![
                         #(
-                            Arc::new(Edge::new::<#func_rtn_types>())
+                            Arc::new(donburako::edge::Edge::new::<#func_rtn_types>())
                         ),*
                     ],
                     func: node_func! {
@@ -121,15 +121,15 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                         #(#func_stmts)*
                     },
                     is_blocking: false,
-                    choice: Choice::All,
+                    choice: donburako::node::Choice::All,
                     name: #func_name_str,
                 }
             }
-            fn outputs(&self) -> &Vec<Arc<Edge>> {
+            fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                 &self.outputs
             }
-            fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
-                std::sync::Arc::new(Node::new(
+            fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                Ok(std::sync::Arc::new(Node::new(
                     inputs,
                     manage_cnt,
                     self.outputs,
@@ -137,7 +137,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     self.is_blocking,
                     self.name,
                     self.choice,
-                ))
+                )))
             }
         }
     })
@@ -159,7 +159,7 @@ mod tests {
         let result = node_builder_impl(quote! {}, input).to_string();
         let expected = quote! {
             struct DivideBuilder {
-                outputs: Vec<Arc<Edge>>,
+                outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a Node,
                     &'a donburako::operator::Operator,
@@ -168,28 +168,28 @@ mod tests {
                 + Send
                 + Sync>,
                 is_blocking: bool,
-                choice: Choice,
+                choice: donburako::node::Choice,
                 name: &'static str,
             }
             impl donburako::node::NodeBuilder for DivideBuilder {
                 fn new() -> Self {
                     DivideBuilder {
-                        outputs: vec![Arc::new(Edge::new::<i32>()), Arc::new(Edge::new::<i32>())],
+                        outputs: vec![Arc::new(donburako::edge::Edge::new::<i32>()), Arc::new(donburako::edge::Edge::new::<i32>())],
                         func: node_func! {
                             input!(n: i32);
                             println!("divide: {}", n);
                             output!(n, n);
                         },
                         is_blocking: false,
-                        choice: Choice::All,
+                        choice: donburako::node::Choice::All,
                         name: "divide",
                     }
                 }
-                fn outputs(&self) -> &Vec<Arc<Edge>> {
+                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
-                    std::sync::Arc::new(Node::new(
+                fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -197,7 +197,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    ))
+                    )))
                 }
             }
         }
@@ -216,7 +216,7 @@ mod tests {
         let result = node_builder_impl(quote! {}, input).to_string();
         let expected = quote! {
             struct IsEvenBuilder {
-                outputs: Vec<Arc<Edge>>,
+                outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a Node,
                     &'a donburako::operator::Operator,
@@ -225,28 +225,28 @@ mod tests {
                 + Send
                 + Sync>,
                 is_blocking: bool,
-                choice: Choice,
+                choice: donburako::node::Choice,
                 name: &'static str,
             }
             impl donburako::node::NodeBuilder for IsEvenBuilder {
                 fn new() -> Self {
                     IsEvenBuilder {
-                        outputs: vec![Arc::new(Edge::new::<bool>())],
+                        outputs: vec![Arc::new(donburako::edge::Edge::new::<bool>())],
                         func: node_func! {
                             input!(n: i32);
                             let result = n % 2 == 0;
                             output!(result);
                         },
                         is_blocking: false,
-                        choice: Choice::All,
+                        choice: donburako::node::Choice::All,
                         name: "is_even",
                     }
                 }
-                fn outputs(&self) -> &Vec<Arc<Edge>> {
+                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
-                    std::sync::Arc::new(Node::new(
+                fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -254,7 +254,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    ))
+                    )))
                 }
             }
         }
@@ -272,7 +272,7 @@ mod tests {
         let result = node_builder_impl(quote! {}, input).to_string();
         let expected = quote! {
             struct DoubleBuilder {
-                outputs: Vec<Arc<Edge>>,
+                outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a Node,
                     &'a donburako::operator::Operator,
@@ -281,27 +281,27 @@ mod tests {
                 + Send
                 + Sync>,
                 is_blocking: bool,
-                choice: Choice,
+                choice: donburako::node::Choice,
                 name: &'static str,
             }
             impl donburako::node::NodeBuilder for DoubleBuilder {
                 fn new() -> Self {
                     DoubleBuilder {
-                        outputs: vec![Arc::new(Edge::new::< Option<i32> >())],
+                        outputs: vec![Arc::new(donburako::edge::Edge::new::< Option<i32> >())],
                         func: node_func! {
                             input!(n: i32);
                             output!(Some(n * 2));
                         },
                         is_blocking: false,
-                        choice: Choice::All,
+                        choice: donburako::node::Choice::All,
                         name: "double",
                     }
                 }
-                fn outputs(&self) -> &Vec<Arc<Edge>> {
+                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
-                    std::sync::Arc::new(Node::new(
+                fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    Ok(std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -309,7 +309,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    ))
+                    )))
                 }
             }
         }
