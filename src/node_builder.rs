@@ -10,6 +10,16 @@ fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> 
         if let syn::Stmt::Expr(syn::Expr::Return(ret), _) = stmt {
             if let Some(expr) = ret.expr.as_mut() {
                 match expr.as_mut() {
+                    syn::Expr::Path(path) => {
+                        if path.path.segments.len() != 1 {
+                            return Err(Error::new(path.span(), "expected one path segment"));
+                        }
+                        if let Some(ident) = path.path.get_ident() {
+                            *stmt = parse_quote! {
+                                output!(#ident);
+                            }
+                        }
+                    }
                     syn::Expr::Tuple(tuple) => {
                         if tuple.elems.len() != output_count {
                             return Err(Error::new(
@@ -59,14 +69,23 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let func_rtn_types = {
         let mut rtn_types = vec![];
         if let syn::ReturnType::Type(_, ty) = &func.sig.output {
-            if let syn::Type::Tuple(tuple) = &**ty {
-                for elem in tuple.elems.iter() {
-                    if let syn::Type::Path(path) = elem {
-                        if let Some(ident) = path.path.get_ident() {
-                            rtn_types.push(ident.clone());
+            match &**ty {
+                syn::Type::Path(path) => {
+                    rtn_types.push(path.clone());
+                }
+                syn::Type::Tuple(tuple) => {
+                    for elem in tuple.elems.iter() {
+                        if let syn::Type::Path(path) = elem {
+                            if let Some(ident) = path.path.get_ident() {
+                                rtn_types.push(syn::TypePath {
+                                    qself: None,
+                                    path: syn::Path::from(ident.clone()),
+                                });
+                            }
                         }
                     }
                 }
+                _ => {}
             }
         }
         rtn_types
@@ -129,7 +148,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_node_builder_impl() {
+    fn test_node_builder_impl1() {
         let input = quote! {
             fn divide(n: i32) -> (i32, i32) {
                 println!("divide: {}", n);
@@ -163,6 +182,62 @@ mod tests {
                         is_blocking: false,
                         choice: Choice::All,
                         name: "divide",
+                    }
+                }
+                fn outputs(&self) -> &Vec<Arc<Edge>> {
+                    &self.outputs
+                }
+                fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+                    Node::new(
+                        inputs,
+                        self.outputs,
+                        self.func,
+                        self.is_blocking,
+                        self.name,
+                        self.choice,
+                    )
+                }
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_node_builder_impl2() {
+        let input = quote! {
+            fn is_even(n: i32) -> bool {
+                let result = n % 2 == 0;
+                return result;
+            }
+        };
+        let result = node_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            struct IsEvenBuilder {
+                outputs: Vec<Arc<Edge>>,
+                func: Box<dyn for<'a> Fn(
+                    &'a Node,
+                    &'a donburako::operator::Operator,
+                    donburako::operator::ExecutorId,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                + Send
+                + Sync>,
+                is_blocking: bool,
+                choice: Choice,
+                name: &'static str,
+            }
+            impl donburako::node::NodeBuilder for IsEvenBuilder {
+                fn new() -> Self {
+                    IsEvenBuilder {
+                        outputs: vec![Arc::new(Edge::new::<bool>())],
+                        func: node_func! {
+                            input!(n: i32);
+                            let result = n % 2 == 0;
+                            output!(result);
+                        },
+                        is_blocking: false,
+                        choice: Choice::All,
+                        name: "is_even",
                     }
                 }
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
