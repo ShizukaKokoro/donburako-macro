@@ -10,16 +10,6 @@ fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> 
         if let syn::Stmt::Expr(syn::Expr::Return(ret), _) = stmt {
             if let Some(expr) = ret.expr.as_mut() {
                 match expr.as_mut() {
-                    syn::Expr::Path(path) => {
-                        if path.path.segments.len() != 1 {
-                            return Err(Error::new(path.span(), "expected one path segment"));
-                        }
-                        if let Some(ident) = path.path.get_ident() {
-                            *stmt = parse_quote! {
-                                output!(#ident);
-                            }
-                        }
-                    }
                     syn::Expr::Tuple(tuple) => {
                         if tuple.elems.len() != output_count {
                             return Err(Error::new(
@@ -31,7 +21,17 @@ fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> 
                             output!#tuple;
                         }
                     }
-                    _ => return Err(Error::new(expr.span(), "return statement must be a tuple")),
+                    _ => {
+                        if output_count != 1 {
+                            return Err(Error::new(
+                                expr.span(),
+                                format!("return statement must have {} expressions", output_count),
+                            ));
+                        }
+                        *stmt = parse_quote! {
+                            output!(#expr);
+                        }
+                    }
                 }
             } else {
                 return Err(Error::new(
@@ -238,6 +238,60 @@ mod tests {
                         is_blocking: false,
                         choice: Choice::All,
                         name: "is_even",
+                    }
+                }
+                fn outputs(&self) -> &Vec<Arc<Edge>> {
+                    &self.outputs
+                }
+                fn build(self, inputs: Vec<Arc<Edge>>) -> Node {
+                    Node::new(
+                        inputs,
+                        self.outputs,
+                        self.func,
+                        self.is_blocking,
+                        self.name,
+                        self.choice,
+                    )
+                }
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_node_builder_impl3() {
+        let input = quote! {
+            fn double(n: i32) -> Option<i32> {
+                return Some(n * 2);
+            }
+        };
+        let result = node_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            struct DoubleBuilder {
+                outputs: Vec<Arc<Edge>>,
+                func: Box<dyn for<'a> Fn(
+                    &'a Node,
+                    &'a donburako::operator::Operator,
+                    donburako::operator::ExecutorId,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                + Send
+                + Sync>,
+                is_blocking: bool,
+                choice: Choice,
+                name: &'static str,
+            }
+            impl donburako::node::NodeBuilder for DoubleBuilder {
+                fn new() -> Self {
+                    DoubleBuilder {
+                        outputs: vec![Arc::new(Edge::new::< Option<i32> >())],
+                        func: node_func! {
+                            input!(n: i32);
+                            output!(Some(n * 2));
+                        },
+                        is_blocking: false,
+                        choice: Choice::All,
+                        name: "double",
                     }
                 }
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
