@@ -128,8 +128,8 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             fn outputs(&self) -> &Vec<Arc<Edge>> {
                 &self.outputs
             }
-            fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
-                Node::new(
+            fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
+                std::sync::Arc::new(Node::new(
                     inputs,
                     manage_cnt,
                     self.outputs,
@@ -137,7 +137,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     self.is_blocking,
                     self.name,
                     self.choice,
-                )
+                ))
             }
         }
     })
@@ -188,8 +188,8 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
-                    Node::new(
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
+                    std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -197,7 +197,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    )
+                    ))
                 }
             }
         }
@@ -245,8 +245,8 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
-                    Node::new(
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
+                    std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -254,7 +254,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    )
+                    ))
                 }
             }
         }
@@ -300,8 +300,8 @@ mod tests {
                 fn outputs(&self) -> &Vec<Arc<Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> Node {
-                    Node::new(
+                fn build(self, inputs: Vec<Arc<Edge>>, manage_cnt: usize) -> std::sync::Arc<Node> {
+                    std::sync::Arc::new(Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -309,7 +309,7 @@ mod tests {
                         self.is_blocking,
                         self.name,
                         self.choice,
-                    )
+                    ))
                 }
             }
         }
