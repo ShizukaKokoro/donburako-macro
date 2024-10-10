@@ -26,13 +26,14 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
         let _ = input.parse::<syn::Token![:]>()?;
         let ty = input.parse::<syn::Type>()?;
         stmts.push(quote! {
-            let mut con = cons.pop_front().unwrap();
+            con = cons.pop_front().unwrap();
             let #pat: #ty = con.take().unwrap();
         });
     }
 
     Ok(quote! {
         let mut cons = op.get_container(#from, #id).await;
+        let mut con = donburako::container::Container::default();
         #(#stmts)*
     })
 }
