@@ -8,13 +8,11 @@ mod branch;
 mod data;
 mod first;
 mod node_func;
-mod workflow;
 
 use crate::branch::branch_impl;
 use crate::data::{store_impl, take_impl};
 use crate::first::first_impl;
 use crate::node_func::node_func_impl;
-use crate::workflow::workflow_impl;
 use proc_macro::TokenStream;
 
 /// 条件分岐を行うマクロ
@@ -31,14 +29,6 @@ pub fn branch(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn first(tokens: TokenStream) -> TokenStream {
     first_impl(tokens.into()).into()
-}
-
-/// ワークフローを実行するマクロ
-///
-/// ワークフローを実行するコードを生成する。
-#[proc_macro]
-pub fn workflow(tokens: TokenStream) -> TokenStream {
-    workflow_impl(tokens.into()).into()
 }
 
 /// ノードの関数を定義するマクロ
