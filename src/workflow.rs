@@ -27,15 +27,15 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                             }
                             _ => {
                                 return Err(Error::new(
-                                    local.span(),
+                                    call.span(),
                                     "expected initialization with function call",
                                 ))
                             }
                         },
                         _ => {
                             return Err(Error::new(
-                                local.span(),
-                                "expected initialization with function call",
+                                local_init.expr.span(),
+                                "initialization with function call is required",
                             ))
                         }
                     };
@@ -46,14 +46,20 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                             for arg in args.iter() {
                                 match arg {
                                     syn::Expr::Path(path) => {
+                                        if path.path.segments.len() != 1 {
+                                            return Err(Error::new(
+                                                path.span(),
+                                                "expected one path segment",
+                                            ));
+                                        }
                                         let arg_name =
                                             path.path.segments.first().unwrap().ident.clone();
                                         arg_vec.push(arg_name);
                                     }
                                     _ => {
                                         return Err(Error::new(
-                                            local.span(),
-                                            "expected initialization with function call",
+                                            arg.span(),
+                                            "unsupported expression in argument",
                                         ))
                                     }
                                 }
@@ -97,14 +103,14 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                                         }));
                                     }
                                 }
-                                _ => {
-                                    return Err(Error::new(let_stmt.span(), "expected tuple type"))
-                                }
+                                _ => return Err(Error::new(ty.span(), "expected tuple type")),
                             }
                         }
-                        _ => return Err(Error::new(let_stmt.span(), "expected let statement")),
+                        _ => {
+                            return Err(Error::new(pat_type.span(), "expected ident/tuple pattern"))
+                        }
                     },
-                    _ => return Err(Error::new(let_stmt.span(), "expected let statement")),
+                    _ => return Err(Error::new(local.pat.span(), "type annotation is required")),
                 }
                 (wf_name, args, rtns)
             }
