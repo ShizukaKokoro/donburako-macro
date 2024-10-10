@@ -9,12 +9,14 @@ mod data;
 mod first;
 mod ioput;
 mod node_func;
+mod workflow;
 
 use crate::branch::branch_impl;
 use crate::data::{store_impl, take_impl};
 use crate::first::first_impl;
 use crate::ioput::{input_impl, output_impl};
 use crate::node_func::node_func_impl;
+use crate::workflow::workflow_impl;
 use proc_macro::TokenStream;
 
 /// 条件分岐を行うマクロ
@@ -71,4 +73,12 @@ pub fn input(tokens: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn output(tokens: TokenStream) -> TokenStream {
     output_impl(tokens.into()).into()
+}
+
+/// ワークフローの呼び出しを行うマクロ
+///
+/// ワークフローの呼び出しを行うコードを生成する。
+#[proc_macro]
+pub fn workflow(tokens: TokenStream) -> TokenStream {
+    workflow_impl(tokens.into()).into()
 }
