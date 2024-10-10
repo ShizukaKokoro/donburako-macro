@@ -11,21 +11,13 @@ pub fn branch_impl(tokens: TokenStream) -> TokenStream {
 
 pub fn branch_parse(_: ParseStream) -> Result<TokenStream> {
     Ok(quote! {
-        input! {
-            let state: bool;
+        take! {
+            exec_id | self_.inputs()
+                => state: bool
         }
-        let mut con_clone = con.clone_container().unwrap();
-        con_clone.store(());
-        let mut output_cons = std::collections::VecDeque::new();
-        output_cons.push_back(con_clone);
-        if state {
-            op.add_container(&vec![self_.outputs()[0].clone()], exec_id, output_cons)
-                .await
-                .unwrap();
-        } else {
-            op.add_container(&vec![self_.outputs()[1].clone()], exec_id, output_cons)
-                .await
-                .unwrap();
+        store!{
+            exec_id | &vec![if state { self_.outputs()[0].clone() } else { self_.outputs()[1].clone() }]
+                => ()
         }
     })
 }
@@ -40,21 +32,13 @@ mod tests {
         let input = quote! {};
         let result = branch_impl(input).to_string();
         let expected = quote! {
-            input! {
-                let state: bool;
+            take! {
+                exec_id | self_.inputs()
+                    => state: bool
             }
-            let mut con_clone = con.clone_container().unwrap();
-            con_clone.store(());
-            let mut output_cons = std::collections::VecDeque::new();
-            output_cons.push_back(con_clone);
-            if state {
-                op.add_container(&vec![self_.outputs()[0].clone()], exec_id, output_cons)
-                    .await
-                    .unwrap();
-            } else {
-                op.add_container(&vec![self_.outputs()[1].clone()], exec_id, output_cons)
-                    .await
-                    .unwrap();
+            store!{
+                exec_id | &vec![if state { self_.outputs()[0].clone() } else { self_.outputs()[1].clone() }]
+                    => ()
             }
         }
         .to_string();
