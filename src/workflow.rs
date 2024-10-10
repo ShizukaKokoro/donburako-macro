@@ -195,12 +195,12 @@ mod tests {
         };
         let result = workflow_impl(input).to_string();
         let expected = quote! {
-            let wf_id = WorkflowId::new("func_map");
+            let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
-                let id = ExecutorId::new();
+                let id = donburako::operator::ExecutorId::default();
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 op.start_workflow(id, wf_id, Some(tx)).await;
                 exec_ids.push((id, rx));
@@ -242,12 +242,12 @@ mod tests {
         };
         let result = workflow_impl(input).to_string();
         let expected = quote! {
-            let wf_id = WorkflowId::new("func_map");
+            let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
-                let id = ExecutorId::new();
+                let id = donburako::operator::ExecutorId::default();
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 op.start_workflow(id, wf_id, Some(tx)).await;
                 exec_ids.push((id, rx));
@@ -291,12 +291,12 @@ mod tests {
         };
         let result = workflow_impl(input).to_string();
         let expected = quote! {
-            let wf_id = WorkflowId::new("func_map");
+            let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
             let (start, end) = op.get_start_end_edges(&wf_id);
             for (item1, item2) in list {
-                let id = ExecutorId::new();
+                let id = donburako::operator::ExecutorId::default();
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 op.start_workflow(id, wf_id, Some(tx)).await;
                 exec_ids.push((id, rx));
@@ -344,12 +344,12 @@ mod tests {
         };
         let result = workflow_impl(input).to_string();
         let expected = quote! {
-            let wf_id = WorkflowId::new("func_map");
+            let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = 0;
             let mut exec_ids = Vec::new();
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
-                let id = ExecutorId::new();
+                let id = donburako::operator::ExecutorId::default();
                 let (tx, rx) = tokio::sync::oneshot::channel();
                 op.start_workflow(id, wf_id, Some(tx)).await;
                 exec_ids.push((id, rx));
