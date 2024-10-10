@@ -78,7 +78,13 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
     Ok(quote! {
         struct #struct_name {
             outputs: Vec<Arc<Edge>>,
-            func: Box<AsyncFn>,
+            func: Box<dyn for<'a> Fn(
+                &'a Node,
+                &'a donburako::operator::Operator,
+                donburako::operator::ExecutorId,
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+            + Send
+            + Sync>,
             is_blocking: bool,
             choice: Choice,
             name: &'static str,
@@ -126,6 +132,7 @@ mod tests {
     fn test_node_builder_impl() {
         let input = quote! {
             fn divide(n: i32) -> (i32, i32) {
+                println!("divide: {}", n);
                 return (n, n);
             }
         };
@@ -133,7 +140,13 @@ mod tests {
         let expected = quote! {
             struct DivideBuilder {
                 outputs: Vec<Arc<Edge>>,
-                func: Box<AsyncFn>,
+                func: Box<dyn for<'a> Fn(
+                    &'a Node,
+                    &'a donburako::operator::Operator,
+                    donburako::operator::ExecutorId,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                + Send
+                + Sync>,
                 is_blocking: bool,
                 choice: Choice,
                 name: &'static str,
@@ -144,6 +157,7 @@ mod tests {
                         outputs: vec![Arc::new(Edge::new::<i32>()), Arc::new(Edge::new::<i32>())],
                         func: node_func! {
                             input!(n: i32);
+                            println!("divide: {}", n);
                             output!(n, n);
                         },
                         is_blocking: false,
