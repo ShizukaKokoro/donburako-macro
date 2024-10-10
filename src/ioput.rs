@@ -10,7 +10,29 @@ pub fn input_impl(tokens: TokenStream) -> TokenStream {
 }
 
 pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
-    todo!()
+    let mut stmts = vec![];
+    while !input.is_empty() {
+        let stmt = if input.peek(syn::Token![_]) {
+            let _ = input.parse::<syn::Token![_]>()?;
+            syn::Ident::new("_", proc_macro2::Span::call_site())
+        } else {
+            input.parse::<syn::Ident>()?
+        };
+        let _ = input.parse::<syn::Token![:]>()?;
+        let ty = input.parse::<syn::Type>()?;
+        stmts.push(quote! { => #stmt: #ty });
+        if input.is_empty() {
+            break;
+        }
+        let _ = input.parse::<syn::Token![,]>()?;
+    }
+
+    Ok(quote! {
+        take! {
+            exec_id | self_.inputs()
+                #(#stmts)*
+        }
+    })
 }
 
 pub fn output_impl(tokens: TokenStream) -> TokenStream {
@@ -20,12 +42,28 @@ pub fn output_impl(tokens: TokenStream) -> TokenStream {
 }
 
 pub fn output_parse(input: ParseStream) -> Result<TokenStream> {
-    todo!()
+    let mut stmts = vec![];
+    while !input.is_empty() {
+        let stmt = input.parse::<syn::Expr>()?;
+        stmts.push(quote! { => #stmt });
+        if input.is_empty() {
+            break;
+        }
+        let _ = input.parse::<syn::Token![,]>()?;
+    }
+
+    Ok(quote! {
+        store! {
+            exec_id | self_.outputs()
+                #(#stmts)*
+        }
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_input_parse() {
@@ -45,7 +83,7 @@ mod tests {
     #[test]
     fn test_input_parse_multi() {
         let input = quote! {
-            arg_0to1_int: fizz::i32, arg_0to1_str: &str
+            _:(), arg_0to1_int: fizz::i32, arg_0to1_str: &str
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
