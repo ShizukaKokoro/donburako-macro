@@ -88,10 +88,12 @@ mod tests {
         let result = take_impl(input).to_string();
         let expected = quote! {
             let mut cons = op.get_container(self_.inputs(), exec_id).await;
-            for _ in 0..=self_.manage_cnt(){
-                let _ = cons.pop_front().unwrap();
+            let mut con = donburako::container::Container::default();
+            for _ in 0..self_.manage_cnt(){
+                con = cons.pop_front().unwrap();
+                let _: () = con.take().unwrap();
             }
-            let mut con = cons.pop_front().unwrap();
+            con = cons.pop_front().unwrap();
             let arg_to0: &str = con.take().unwrap();
         }
         .to_string();
@@ -109,11 +111,16 @@ mod tests {
         let result = take_impl(input).to_string();
         let expected = quote! {
             let mut cons = op.get_container(start, id).await;
-            let mut con = cons.pop_front().unwrap();
+            let mut con = donburako::container::Container::default();
+            for _ in 0..self_.manage_cnt(){
+                con = cons.pop_front().unwrap();
+                let _: () = con.take().unwrap();
+            }
+            con = cons.pop_front().unwrap();
             let _: () = con.take().unwrap();
-            let mut con = cons.pop_front().unwrap();
+            con = cons.pop_front().unwrap();
             let arg_0to1_int: fizz::i32 = con.take().unwrap();
-            let mut con = cons.pop_front().unwrap();
+            con = cons.pop_front().unwrap();
             let arg_0to1_str: &str = con.take().unwrap();
         }
         .to_string();
