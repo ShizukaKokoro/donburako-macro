@@ -12,9 +12,7 @@ pub fn workflow_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream
 pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let func = input.parse::<syn::ItemFn>()?;
     Ok(quote! {
-        fn nothing() -> i32 {
-            return 0;
-        }
+        #func
     })
 }
 

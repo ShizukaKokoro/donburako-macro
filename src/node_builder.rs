@@ -150,6 +150,40 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             }
         }
     };
+    // 中でマクロを使っていると、変数の整合性がとれないため、ダミーの関数でなければならない
+    let fake_func = {
+        let mut fake_func = func.clone();
+        fake_func.sig.inputs = fake_func
+            .sig
+            .inputs
+            .clone()
+            .iter()
+            .map(|arg| -> syn::FnArg {
+                if let syn::FnArg::Typed(pat) = arg {
+                    let ty = pat.ty.clone();
+                    parse_quote!(_: #ty)
+                } else {
+                    parse_quote!()
+                }
+            })
+            .collect();
+        if func_rtn_types.len() == 1 {
+            fake_func.block = Box::new(syn::Block {
+                brace_token: func.block.brace_token,
+                stmts: vec![parse_quote!(return fake::Faker.fake();)],
+            })
+        } else {
+            let mut fakes: Vec<syn::Expr> = Vec::with_capacity(func_rtn_types.len());
+            for _ in 0..func_rtn_types.len() {
+                fakes.push(parse_quote!(fake::Faker.fake()));
+            }
+            fake_func.block = Box::new(syn::Block {
+                brace_token: func.block.brace_token,
+                stmts: vec![parse_quote!(return (#(#fakes),*);)],
+            })
+        }
+        fake_func
+    };
     Ok(quote! {
         struct #struct_name {
             outputs: Vec<Arc<donburako::edge::Edge>>,
@@ -186,6 +220,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             }
             #build_fn
         }
+        #fake_func
     })
 }
 
@@ -254,6 +289,9 @@ mod tests {
                     )))
                 }
             }
+            fn divide(n: i32) -> (i32, i32) {
+                return (fake::Faker.fake(), fake::Faker.fake());
+            }
         }
         .to_string();
         assert_eq!(result, expected);
@@ -319,6 +357,9 @@ mod tests {
                     )))
                 }
             }
+            fn is_even(n: i32) -> bool {
+                return fake::Faker.fake();
+            }
         }
         .to_string();
         assert_eq!(result, expected);
@@ -381,6 +422,9 @@ mod tests {
                         self.choice,
                     )))
                 }
+            }
+            fn double(n: i32) -> Option<i32> {
+                return fake::Faker.fake();
             }
         }
         .to_string();
@@ -448,6 +492,9 @@ mod tests {
                         self.choice,
                     )))
                 }
+            }
+            fn add(a: i32, b: i32) -> i32 {
+                return fake::Faker.fake();
             }
         }
         .to_string();
