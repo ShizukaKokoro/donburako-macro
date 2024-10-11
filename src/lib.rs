@@ -6,19 +6,19 @@
 
 mod branch;
 mod data;
-mod first;
 mod ioput;
 mod node_builder;
 mod node_func;
+mod select;
 mod workflow;
 mod workflow_builder;
 
 use crate::branch::branch_builder_impl;
 use crate::data::{store_impl, take_impl};
-use crate::first::first_impl;
 use crate::ioput::{input_impl, output_impl};
 use crate::node_builder::node_builder_impl;
 use crate::node_func::node_func_impl;
+use crate::select::select_builder_impl;
 use crate::workflow::workflow_impl;
 use crate::workflow_builder::workflow_builder_impl;
 use proc_macro::TokenStream;
@@ -31,12 +31,12 @@ pub fn branch_builder(tokens: TokenStream) -> TokenStream {
     branch_builder_impl(tokens.into()).into()
 }
 
-/// 最初の入力を取り出すマクロ
+/// 選択を行うノードのビルダーを生成するマクロ
 ///
-/// 最初の入力を取り出すコードを生成する。
+/// 選択を行うノードのビルダーを生成するコードを生成する。
 #[proc_macro]
-pub fn first(tokens: TokenStream) -> TokenStream {
-    first_impl(tokens.into()).into()
+pub fn select_builder(tokens: TokenStream) -> TokenStream {
+    select_builder_impl(tokens.into()).into()
 }
 
 /// ノードの関数を定義するマクロ
