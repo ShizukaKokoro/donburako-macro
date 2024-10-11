@@ -11,6 +11,7 @@ mod ioput;
 mod node_builder;
 mod node_func;
 mod workflow;
+mod workflow_builder;
 
 use crate::branch::branch_impl;
 use crate::data::{store_impl, take_impl};
@@ -19,6 +20,7 @@ use crate::ioput::{input_impl, output_impl};
 use crate::node_builder::node_builder_impl;
 use crate::node_func::node_func_impl;
 use crate::workflow::workflow_impl;
+use crate::workflow_builder::workflow_builder_impl;
 use proc_macro::TokenStream;
 
 /// 条件分岐を行うマクロ
@@ -93,4 +95,10 @@ pub fn node_builder(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     node_builder_impl(attrs.into(), tokens.into()).into()
 }
 
-// TODO: ワークフロービルダーを構築するマクロを追加する
+/// ワークフロービルダーを生成するマクロ
+///
+/// ワークフロービルダーを生成するコードを生成する。
+#[proc_macro_attribute]
+pub fn workflow_builder(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    workflow_builder_impl(attrs.into(), tokens.into()).into()
+}
