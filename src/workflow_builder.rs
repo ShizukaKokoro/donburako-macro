@@ -14,10 +14,30 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let func_name = &func.sig.ident;
     let func_name_workflow = syn::Ident::new(&format!("{}_workflow", func_name), func_name.span());
     let func_name_str = func_name.to_string();
+    let func_args = Vec::from_iter(func.sig.inputs.iter().map(|arg| {
+        if let syn::FnArg::Typed(pat) = arg {
+            match pat.pat.as_ref() {
+                syn::Pat::Ident(ident) => return (ident.ident.clone(), pat.ty.clone()),
+                _ => panic!("Invalid function argument"),
+            }
+        }
+        panic!("Invalid function argument");
+    }));
 
-    let mut node_names: Vec<syn::Ident> = Vec::new();
-    let mut input_nodes: Vec<syn::Ident> = Vec::new();
-    let mut output_nodes: Vec<syn::Ident> = Vec::new();
+    let node_names: Vec<syn::Ident> = Vec::new();
+    let (input_edge_exprs, input_edges) = {
+        let mut input_edge_exprs = Vec::new();
+        let mut input_edges = Vec::new();
+        for (name, arg) in func_args {
+            let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
+            input_edge_exprs.push(quote! {
+                let #edge_name = Arc::new(Edge::new::<#arg>());
+            });
+            input_edges.push(quote! { #edge_name });
+        }
+        (input_edge_exprs, input_edges)
+    };
+    let output_edges: Vec<syn::Ident> = Vec::new();
 
     let (node_var_names, add_nodes) = {
         let mut node_var_names = Vec::new();
@@ -45,14 +65,13 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             Box<dyn std::error::Error>,
         > {
             let wf_id = WorkflowId::new(#func_name_str);
-            {
-                #(#node_var_names)*
-            }
+            #(#node_var_names)*
+            #(#input_edge_exprs)*
 
             let builder = WorkflowBuilder::default()
                 #(#add_nodes)*
                 ;
-            Ok((wf_id, builder, vec![#(#input_nodes),*], vec![#(#output_nodes),*]))
+            Ok((wf_id, builder, vec![#(#input_edges),*], vec![#(#output_edges),*]))
         }
         #func
     })
@@ -67,7 +86,7 @@ mod tests {
     fn test_workflow_builder_impl() {
         let input = quote! {
             fn func_map(n: i32) -> Option<i32> {
-                let (n0, n1) = divide(n);
+                let (n0, n1) = divide2(n);
                 let even: bool = is_even(n0);
                 let selected: Option<i32> = if even {
                     let res: Option<i32> = double(n1);
