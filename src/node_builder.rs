@@ -260,8 +260,9 @@ mod tests {
     #[test]
     fn test_node_builder_impl1() {
         let input = quote! {
-            fn divide(n: i32) -> (i32, i32) {
+            async fn divide(n: i32) -> (i32, i32) {
                 println!("divide: {}", n);
+                sleep(Duration::from_secs(1)).await;
                 return (n, n);
             }
         };
@@ -287,6 +288,7 @@ mod tests {
                         func: node_func! {
                             input!(n: i32);
                             println!("divide: {}", n);
+                            sleep(Duration::from_secs(1)).await;
                             output!(n, n);
                         },
                         is_blocking: false,
@@ -317,7 +319,7 @@ mod tests {
                     )))
                 }
             }
-            fn divide(n: i32) -> (i32, i32) {
+            async fn divide(_: i32) -> (i32, i32) {
                 return (fake::Faker.fake(), fake::Faker.fake());
             }
         }
@@ -357,7 +359,7 @@ mod tests {
                             let result = n % 2 == 0;
                             output!(result);
                         },
-                        is_blocking: false,
+                        is_blocking: true,
                         choice: donburako::node::Choice::All,
                         name: "is_even",
                     }
@@ -385,7 +387,7 @@ mod tests {
                     )))
                 }
             }
-            fn is_even(n: i32) -> bool {
+            fn is_even(_: i32) -> bool {
                 return fake::Faker.fake();
             }
         }
@@ -423,7 +425,7 @@ mod tests {
                             input!(n: i32);
                             output!(Some(n * 2));
                         },
-                        is_blocking: false,
+                        is_blocking: true,
                         choice: donburako::node::Choice::All,
                         name: "double",
                     }
@@ -451,7 +453,7 @@ mod tests {
                     )))
                 }
             }
-            fn double(n: i32) -> Option<i32> {
+            fn double(_: i32) -> Option<i32> {
                 return fake::Faker.fake();
             }
         }
@@ -489,7 +491,7 @@ mod tests {
                             input!(a: i32, b: i32);
                             output!(a + b);
                         },
-                        is_blocking: false,
+                        is_blocking: true,
                         choice: donburako::node::Choice::All,
                         name: "add",
                     }
@@ -521,7 +523,7 @@ mod tests {
                     )))
                 }
             }
-            fn add(a: i32, b: i32) -> i32 {
+            fn add(_: i32, _: i32) -> i32 {
                 return fake::Faker.fake();
             }
         }
