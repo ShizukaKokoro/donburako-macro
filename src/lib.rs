@@ -13,7 +13,7 @@ mod node_func;
 mod workflow;
 mod workflow_builder;
 
-use crate::branch::branch_impl;
+use crate::branch::branch_builder_impl;
 use crate::data::{store_impl, take_impl};
 use crate::first::first_impl;
 use crate::ioput::{input_impl, output_impl};
@@ -23,12 +23,12 @@ use crate::workflow::workflow_impl;
 use crate::workflow_builder::workflow_builder_impl;
 use proc_macro::TokenStream;
 
-/// 条件分岐を行うマクロ
+/// 条件分岐を行うノードのビルダーを生成するマクロ
 ///
-/// 条件分岐を行うコードを生成する。
+/// 条件分岐を行うノードのビルダーを生成するコードを生成する。
 #[proc_macro]
-pub fn branch(tokens: TokenStream) -> TokenStream {
-    branch_impl(tokens.into()).into()
+pub fn branch_builder(tokens: TokenStream) -> TokenStream {
+    branch_builder_impl(tokens.into()).into()
 }
 
 /// 最初の入力を取り出すマクロ
