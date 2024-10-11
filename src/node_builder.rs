@@ -3,6 +3,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
+use syn::visit::{visit_expr, Visit};
 use syn::{parse_quote, Error, Result};
 
 fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> Result<()> {
@@ -42,6 +43,19 @@ fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> 
         }
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct AwaitFinder {
+    found: bool,
+}
+impl<'ast> Visit<'ast> for AwaitFinder {
+    fn visit_expr(&mut self, expr: &'ast syn::Expr) {
+        if let syn::Expr::Await(_) = expr {
+            self.found = true;
+        }
+        visit_expr(self, expr);
+    }
 }
 
 pub fn node_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream {
@@ -150,9 +164,23 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             }
         }
     };
+    let mut finder = AwaitFinder::default();
+    finder.visit_block(&func.block);
+    let is_blocking = !finder.found;
     // 中でマクロを使っていると、変数の整合性がとれないため、ダミーの関数でなければならない
     let fake_func = {
         let mut fake_func = func.clone();
+        if is_blocking && fake_func.sig.asyncness.is_some() {
+            return Err(Error::new(
+                fake_func.sig.asyncness.span(),
+                "blocking function cannot be async",
+            ));
+        } else if !is_blocking && fake_func.sig.asyncness.is_none() {
+            return Err(Error::new(
+                fake_func.sig.asyncness.span(),
+                "non-blocking function must be async",
+            ));
+        }
         fake_func.sig.inputs = fake_func
             .sig
             .inputs
@@ -210,7 +238,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                         input!(#(#func_args),*);
                         #(#func_stmts)*
                     },
-                    is_blocking: false,
+                    is_blocking: #is_blocking,
                     choice: donburako::node::Choice::All,
                     name: #func_name_str,
                 }
