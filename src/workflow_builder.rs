@@ -51,7 +51,10 @@ fn node_name(ident: &syn::Ident) -> syn::Ident {
 
 fn builder_name(path: &mut syn::Path) {
     let last = path.segments.last_mut().unwrap();
-    last.ident = syn::Ident::new(&format!("{}Builder", last.ident), last.ident.span());
+    last.ident = syn::Ident::new(
+        &format!("{}Builder", last.ident.to_string().to_case(Case::Pascal)),
+        last.ident.span(),
+    );
 }
 
 fn edge_name(ident: &syn::Ident) -> syn::Ident {
