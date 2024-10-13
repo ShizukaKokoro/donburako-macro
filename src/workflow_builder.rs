@@ -9,7 +9,8 @@ use syn::{Error, Result};
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_var_let: Vec<TokenStream>,
+    pub node_var_names: Vec<syn::Ident>,
+    pub node_builders: Vec<TokenStream>,
     pub add_nodes: Vec<TokenStream>,
     pub branch_cnt: usize,
     pub select_cnt: usize,
@@ -55,9 +56,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             name.span(),
         );
         path.segments.last_mut().unwrap().ident = builder_name;
-        self.node_var_let.push(quote! {
-            let #node_var = #path::new();
-        });
+        self.node_var_names.push(node_var.clone());
+        self.node_builders.push(quote! { #path::new() });
         self.add_nodes.push(quote! {
             .add_node(#node_var)?
         });
@@ -66,9 +66,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
         let branch_name =
             syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), expr_if.span());
-        self.node_var_let.push(quote! {
-            let #branch_name = branch_builder!();
-        });
+        self.node_var_names.push(branch_name.clone());
+        self.node_builders.push(quote! { branch_builder!() });
         self.add_nodes.push(quote! {
             .add_node(#branch_name)?
         });
@@ -133,9 +132,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         &format!("node_select_{}", self.select_cnt),
                         local_init.expr.span(),
                     );
-                    self.node_var_let.push(quote! {
-                        let #select_name = select_builder!(#ty);
-                    });
+                    self.node_var_names.push(select_name.clone());
+                    self.node_builders.push(quote! { select_builder!(#ty) });
                     self.add_nodes.push(quote! {
                         .add_node(#select_name)?
                     });
@@ -182,7 +180,16 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         return Err(err);
     }
 
-    let node_var_let = visitor.node_var_let;
+    let node_var_let: Vec<_> = visitor
+        .node_var_names
+        .iter()
+        .zip(visitor.node_builders.iter())
+        .map(|(name, builder)| -> TokenStream {
+            quote! {
+                let #name = #builder;
+            }
+        })
+        .collect();
     let add_nodes = visitor.add_nodes;
 
     let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
