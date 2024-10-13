@@ -179,8 +179,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         &format!("node_select_{}", self.select_cnt),
                         local_init.expr.span(),
                     );
+                    let select_var = syn::Ident::new(
+                        &format!("select_{}", self.select_cnt),
+                        local_init.expr.span(),
+                    );
                     let from = self.node_var_names.len();
-                    self.set_var(vec![select_name.clone()], from);
+                    self.set_var(vec![select_var.clone()], from);
                     self.node_var_names.push(select_name.clone());
                     self.node_builders.push(quote! { select_builder!(#ty) });
                 }
@@ -347,7 +351,7 @@ mod tests {
                 let edge_n0 = node_divide2.outputs()[0usize].clone();
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
-                let edge_select = node_select0.outputs()[0usize].clone();
+                let edge_select_0 = node_select_0.outputs()[0usize].clone();
                 let edge_true_0 = node_branch_0.outputs()[0usize].clone();
                 let edge_false_0 = node_branch_0.outputs()[1usize].clone();
                 let edge_double = node_double.outputs()[0usize].clone();
@@ -355,10 +359,10 @@ mod tests {
 
                 assert_eq!(node_divide2.outputs().len(), 2);
                 assert_eq!(node_is_even.outputs().len(), 1);
-                assert_eq!(node_branch0.outputs().len(), 2);
+                assert_eq!(node_select_0.outputs().len(), 1);
+                assert_eq!(node_branch_0.outputs().len(), 2);
                 assert_eq!(node_double.outputs().len(), 1);
                 assert_eq!(node_none.outputs().len(), 1);
-                assert_eq!(node_select0.outputs().len(), 1);
 
                 let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0)?;
                 let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0)?;
@@ -375,7 +379,7 @@ mod tests {
                     .add_node(node_double)?
                     .add_node(node_none)?;
 
-                Ok((wf_id, builder, vec![edge_n], vec![edge_select]))
+                Ok((wf_id, builder, vec![edge_n], vec![edge_select_0]))
             }
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
