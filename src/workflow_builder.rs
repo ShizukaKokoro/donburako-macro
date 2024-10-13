@@ -11,7 +11,6 @@ struct StmtVisitor {
     pub err: Option<Error>,
     pub node_var_names: Vec<syn::Ident>,
     pub node_builders: Vec<TokenStream>,
-    pub add_nodes: Vec<TokenStream>,
     pub branch_cnt: usize,
     pub select_cnt: usize,
 }
@@ -58,9 +57,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         path.segments.last_mut().unwrap().ident = builder_name;
         self.node_var_names.push(node_var.clone());
         self.node_builders.push(quote! { #path::new() });
-        self.add_nodes.push(quote! {
-            .add_node(#node_var)?
-        });
     }
 
     fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
@@ -68,9 +64,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), expr_if.span());
         self.node_var_names.push(branch_name.clone());
         self.node_builders.push(quote! { branch_builder!() });
-        self.add_nodes.push(quote! {
-            .add_node(#branch_name)?
-        });
         self.branch_cnt += 1;
         let syn::ExprIf {
             cond,
@@ -134,9 +127,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     );
                     self.node_var_names.push(select_name.clone());
                     self.node_builders.push(quote! { select_builder!(#ty) });
-                    self.add_nodes.push(quote! {
-                        .add_node(#select_name)?
-                    });
                 }
                 self.visit_local_init(local_init);
             }
@@ -180,29 +170,26 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         return Err(err);
     }
 
-    let node_var_let: Vec<_> = visitor
+    let mut node_var_let = Vec::new();
+    //let mut node_output_asserts = Vec::new();
+    let mut add_nodes = Vec::new();
+    for (name, builder) in visitor
         .node_var_names
         .iter()
         .zip(visitor.node_builders.iter())
-        .map(|(name, builder)| -> TokenStream {
-            quote! {
-                let #name = #builder;
-            }
-        })
-        .collect();
-
-    /*
-    let node_output_asserts: Vec<_> = visitor
-        .node_var_names
-        .iter()
-        .map(|name| {
-            quote! {
-                assert_eq!(#name.outputs().len(), 0);
-            }
-        })
-        .collect();
-    */
-    let add_nodes = visitor.add_nodes;
+    {
+        node_var_let.push(quote! {
+            let #name = #builder;
+        });
+        /*
+        node_output_asserts.push(quote! {
+            assert_eq!(#name.outputs().len(), 0);
+        });
+         */
+        add_nodes.push(quote! {
+            .add_node(#name)?
+        });
+    }
 
     let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
         let mut start_edge_exprs = Vec::new();
