@@ -49,7 +49,60 @@ fn get_types_from_type(ty: &syn::Type) -> Result<Vec<syn::TypePath>> {
 struct StmtVisitor {
     pub err: Option<Error>,
 }
-impl<'ast> Visit<'ast> for StmtVisitor {}
+impl<'ast> Visit<'ast> for StmtVisitor {
+    fn visit_expr_await(&mut self, expr_await: &'ast syn::ExprAwait) {
+        match expr_await.base.as_ref() {
+            syn::Expr::Call(expr_call) => {
+                self.visit_expr_call(expr_call);
+            }
+            _ => {
+                self.err = Some(Error::new(
+                    expr_await.span(),
+                    "Await expression must be a call expression",
+                ));
+            }
+        }
+    }
+
+    fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {}
+
+    fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {}
+
+    fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
+        match stmt {
+            syn::Stmt::Local(syn::Local {
+                pat,
+                init: Some(syn::LocalInit { expr, .. }),
+                ..
+            }) => match expr.as_ref() {
+                syn::Expr::Await(expr_await) => self.visit_expr_await(expr_await),
+                syn::Expr::Call(expr_call) => self.visit_expr_call(expr_call),
+                syn::Expr::If(expr_if) => self.visit_expr_if(expr_if),
+                _ => {
+                    self.err = Some(Error::new(
+                        expr.span(),
+                        "Statement must be await, call, or if expression",
+                    ));
+                }
+            },
+            syn::Stmt::Expr(expr, _) => match expr {
+                syn::Expr::Return(expr_return) => {}
+                _ => {
+                    self.err = Some(Error::new(
+                        expr.span(),
+                        "Statement must be a return expression, if it is an expression",
+                    ));
+                }
+            },
+            _ => {
+                self.err = Some(Error::new(
+                    stmt.span(),
+                    "Statement must be a local variable or return",
+                ));
+            }
+        }
+    }
+}
 
 pub fn workflow_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream {
     workflow_builder_parse
