@@ -45,6 +45,19 @@ fn get_types_from_type(ty: &syn::Type) -> Result<Vec<syn::TypePath>> {
     Ok(types)
 }
 
+fn node_name(ident: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(&format!("node_{}", ident), ident.span())
+}
+
+fn builder_name(path: &mut syn::Path) {
+    let last = path.segments.last_mut().unwrap();
+    last.ident = syn::Ident::new(&format!("{}Builder", last.ident), last.ident.span());
+}
+
+fn edge_name(ident: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(&format!("edge_{}", ident), ident.span())
+}
+
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
