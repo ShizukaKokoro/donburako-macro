@@ -231,13 +231,13 @@ mod tests {
     fn test_workflow_builder_impl() {
         let input = quote! {
             async fn func_map(n: i32) -> Option<i32> {
-                let (n0, n1): (i32, i32) = divide2(n).await;
-                let even: bool = some::is_even(n0);
+                let (n0, n1) = divide2(n).await;
+                let even = some::is_even(n0);
                 let selected: Option<i32> = if even {
-                    let res: Option<i32> = double(n1);
+                    let res = double(n1);
                     res
                 } else {
-                    let res: Option<i32> = none();
+                    let res = none();
                     res
                 };
                 return selected;
@@ -291,13 +291,13 @@ mod tests {
                 Ok((wf_id, builder, vec![edge_n], vec![edge_select]))
             }
             async fn func_map(n: i32) -> Option<i32> {
-                let (n0, n1): (i32, i32) = divide2(n).await;
-                let even: bool = some::is_even(n0);
+                let (n0, n1) = divide2(n).await;
+                let even = some::is_even(n0);
                 let selected: Option<i32> = if even {
-                    let res: Option<i32> = double(n1);
+                    let res = double(n1);
                     res
                 } else {
-                    let res: Option<i32> = none();
+                    let res = none();
                     res
                 };
                 return selected;
