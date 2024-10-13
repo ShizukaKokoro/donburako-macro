@@ -1,244 +1,55 @@
-use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::HashMap;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{Error, Result};
 
+fn get_vars_from_pat(pat: &syn::Pat) -> Result<Vec<syn::Ident>> {
+    let mut vars = Vec::new();
+    match pat {
+        syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
+            vars.push(ident.clone());
+        }
+        syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
+            for elem in elems.iter() {
+                vars.extend(get_vars_from_pat(elem)?);
+            }
+        }
+        syn::Pat::Type(syn::PatType { pat, .. }) => {
+            println!("pat: {:?}", pat);
+            vars.extend(get_vars_from_pat(pat)?);
+        }
+        _ => {
+            return Err(Error::new(pat.span(), "Invalid pattern"));
+        }
+    }
+    Ok(vars)
+}
+
+fn get_types_from_type(ty: &syn::Type) -> Result<Vec<syn::TypePath>> {
+    let mut types = Vec::new();
+    match ty {
+        syn::Type::Path(path) => {
+            types.push(path.clone());
+        }
+        syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
+            for elem in elems.iter() {
+                types.extend(get_types_from_type(elem)?);
+            }
+        }
+        _ => {
+            return Err(Error::new(ty.span(), "Invalid type"));
+        }
+    }
+    Ok(types)
+}
+
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_var_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, 入力エッジ, 出力エッジの数)
-    pub node_builders: Vec<TokenStream>,
-    pub branch_cnt: usize,
-    pub select_cnt: usize,
-    pub var_set: HashMap<syn::Ident, usize>,
-    pub var_map: Vec<(syn::Ident, (usize, usize))>,
 }
-impl<'ast> StmtVisitor {
-    fn get_vars(&mut self, pat: &syn::Pat) -> Vec<syn::Ident> {
-        let mut vars = Vec::new();
-        match pat {
-            syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
-                vars.push(ident.clone());
-            }
-            syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
-                for elem in elems.iter() {
-                    vars.extend(self.get_vars(elem));
-                }
-            }
-            syn::Pat::Type(syn::PatType { pat, .. }) => {
-                vars.extend(self.get_vars(pat));
-            }
-            _ => {
-                self.err = Some(Error::new(pat.span(), "Invalid pattern"));
-            }
-        }
-        vars
-    }
-
-    fn set_var(&mut self, vars: Vec<syn::Ident>, from: usize) {
-        for (i, v) in vars.iter().enumerate() {
-            if self.var_set.insert(v.clone(), self.var_map.len()).is_some() {
-                self.err = Some(Error::new(v.span(), "Variable already exists"));
-            }
-            self.var_map.push((v.clone(), (from, i)));
-        }
-    }
-
-    fn inner_visit_stmt(&mut self, stmts: &[syn::Stmt]) {
-        for (i, stmt) in stmts.iter().enumerate() {
-            if i == stmts.len() - 1 {
-                match stmt {
-                    syn::Stmt::Expr(expr, _) => {}
-                    _ => {
-                        self.err = Some(Error::new(stmt.span(), "Invalid statement"));
-                    }
-                }
-            } else {
-                match stmt {
-                    syn::Stmt::Local(syn::Local {
-                        pat,
-                        init: Some(local_init),
-                        ..
-                    }) => {
-                        let vars = self.get_vars(pat);
-                        self.visit_local_init_with_vars(local_init, vars);
-                    }
-                    _ => {
-                        self.err = Some(Error::new(stmt.span(), "Invalid statement"));
-                    }
-                }
-            }
-        }
-    }
-
-    fn visit_expr_call_with_vars(&mut self, expr_call: &'ast syn::ExprCall, vars: Vec<syn::Ident>) {
-        let mut path = match expr_call.func.as_ref() {
-            syn::Expr::Path(syn::ExprPath { path, .. }) => path.clone(),
-            _ => {
-                self.err = Some(Error::new(expr_call.span(), "Invalid function call"));
-                return;
-            }
-        };
-        let node_var = syn::Ident::new(
-            &format!("node_{}", path.segments.last().unwrap().ident),
-            path.segments.last().unwrap().ident.span(),
-        );
-        let name = path.segments.last().unwrap().ident.to_string();
-        let builder_name = syn::Ident::new(
-            &format!("{}Builder", name.to_string().to_case(Case::Pascal)),
-            name.span(),
-        );
-        path.segments.last_mut().unwrap().ident = builder_name;
-        let from = self.node_var_names.len();
-        let vars_len = vars.len();
-        self.set_var(vars, from);
-
-        let mut args = Vec::new();
-        for arg in expr_call.args.iter() {
-            match arg {
-                syn::Expr::Path(syn::ExprPath { path, .. }) => {
-                    let edge_name = syn::Ident::new(
-                        &format!("edge_{}", path.segments.last().unwrap().ident),
-                        path.segments.last().unwrap().ident.span(),
-                    );
-                    args.push(edge_name);
-                }
-                _ => {
-                    self.err = Some(Error::new(arg.span(), "Invalid argument"));
-                }
-            }
-        }
-
-        self.node_var_names.push((node_var.clone(), args, vars_len));
-        self.node_builders.push(quote! { #path::new() });
-    }
-
-    fn visit_local_init_with_vars(
-        &mut self,
-        local_init: &'ast syn::LocalInit,
-        vars: Vec<syn::Ident>,
-    ) {
-        match local_init.expr.as_ref() {
-            syn::Expr::Await(expr_await) => match expr_await.base.as_ref() {
-                syn::Expr::Call(expr_call) => {
-                    self.visit_expr_call_with_vars(expr_call, vars);
-                }
-                _ => {
-                    self.err = Some(Error::new(expr_await.base.span(), "Invalid expression"));
-                }
-            },
-            syn::Expr::Call(expr_call) => {
-                self.visit_expr_call_with_vars(expr_call, vars);
-            }
-            syn::Expr::If(expr_if) => {
-                self.visit_expr_if(expr_if);
-            }
-            _ => {
-                self.err = Some(Error::new(local_init.expr.span(), "Invalid expression"));
-            }
-        }
-    }
-}
-impl<'ast> Visit<'ast> for StmtVisitor {
-    fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
-        let branch_name =
-            syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), expr_if.span());
-        let from = self.node_var_names.len();
-        self.set_var(
-            vec![
-                syn::Ident::new(format!("true_{}", self.branch_cnt).as_str(), expr_if.span()),
-                syn::Ident::new(
-                    format!("false_{}", self.branch_cnt).as_str(),
-                    expr_if.span(),
-                ),
-            ],
-            from,
-        );
-        let syn::ExprIf {
-            cond,
-            then_branch,
-            else_branch,
-            ..
-        } = expr_if;
-        let input_var = match cond.as_ref() {
-            syn::Expr::Path(path) => {
-                let edge_name = syn::Ident::new(
-                    &format!("edge_{}", path.path.segments.last().unwrap().ident),
-                    path.path.segments.last().unwrap().ident.span(),
-                );
-                edge_name
-            }
-            _ => {
-                self.err = Some(Error::new(cond.span(), "Invalid condition"));
-                return;
-            }
-        };
-        self.node_var_names
-            .push((branch_name.clone(), vec![input_var], 2));
-        self.node_builders.push(quote! { branch_builder!() });
-        self.branch_cnt += 1;
-        self.inner_visit_stmt(&then_branch.stmts);
-        if let Some((_, else_expr)) = else_branch {
-            match else_expr.as_ref() {
-                syn::Expr::Block(block) => {
-                    self.inner_visit_stmt(&block.block.stmts);
-                }
-                _ => {
-                    self.err = Some(Error::new(else_expr.span(), "Invalid expression"));
-                }
-            }
-        }
-    }
-
-    fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
-        match stmt {
-            syn::Stmt::Local(syn::Local {
-                pat,
-                init: Some(local_init),
-                ..
-            }) => {
-                let vars = self.get_vars(pat);
-                if let syn::Expr::If(_) = local_init.expr.as_ref() {
-                    let ty = match pat {
-                        syn::Pat::Type(syn::PatType { ty, .. }) => ty.clone(),
-                        _ => {
-                            self.err = Some(Error::new(pat.span(), "Invalid pattern"));
-                            return;
-                        }
-                    };
-                    let select_name = syn::Ident::new(
-                        &format!("node_select_{}", self.select_cnt),
-                        local_init.expr.span(),
-                    );
-                    let select_var = syn::Ident::new(
-                        &format!("select_{}", self.select_cnt),
-                        local_init.expr.span(),
-                    );
-                    let from = self.node_var_names.len();
-                    self.set_var(vec![select_var.clone()], from);
-                    self.node_var_names.push((select_name.clone(), vec![], 1));
-                    self.node_builders.push(quote! { select_builder!(#ty) });
-                    self.visit_local_init_with_vars(local_init, vars);
-                } else {
-                    self.visit_local_init_with_vars(local_init, vars);
-                }
-            }
-            syn::Stmt::Expr(
-                syn::Expr::Return(syn::ExprReturn {
-                    expr: Some(expr), ..
-                }),
-                _,
-            ) => {}
-            _ => {
-                self.err = Some(Error::new(stmt.span(), "Invalid statement"));
-            }
-        }
-    }
-}
+impl<'ast> Visit<'ast> for StmtVisitor {}
 
 pub fn workflow_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream {
     workflow_builder_parse
@@ -267,28 +78,11 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         return Err(err);
     }
 
-    let mut node_var_let = Vec::new();
-    let mut node_output_asserts = Vec::new();
-    let mut build_nodes = Vec::new();
-    let mut add_nodes = Vec::new();
-    for ((name, input_vars, output_edge_cnt), builder) in visitor
-        .node_var_names
-        .iter()
-        .zip(visitor.node_builders.iter())
-    {
-        node_var_let.push(quote! {
-            let #name = #builder;
-        });
-        node_output_asserts.push(quote! {
-            assert_eq!(#name.outputs().len(), #output_edge_cnt);
-        });
-        build_nodes.push(quote! {
-            let #name = #name.build(vec![#(#input_vars.clone()),*], 0)?;
-        });
-        add_nodes.push(quote! {
-            .add_node(#name)?
-        });
-    }
+    let node_var_let: Vec<TokenStream> = Vec::new();
+    let edge_exprs: Vec<TokenStream> = Vec::new();
+    let node_output_asserts: Vec<TokenStream> = Vec::new();
+    let build_nodes: Vec<TokenStream> = Vec::new();
+    let add_nodes: Vec<TokenStream> = Vec::new();
 
     let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
         let mut start_edge_exprs = Vec::new();
@@ -303,21 +97,6 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         (start_edge_exprs, start_edges)
     };
     let end_edges: Vec<syn::Ident> = Vec::new();
-
-    println!("node_var_names: {:?}", visitor.node_var_names);
-    println!("var_map: {:?}", visitor.var_map);
-
-    let edge_exprs: Vec<_> = visitor
-        .var_map
-        .iter()
-        .map(|(name, (from, from_idx))| {
-            let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
-            let from_node = &visitor.node_var_names[*from].0;
-            quote! {
-                let #edge_name = #from_node.outputs()[#from_idx].clone();
-            }
-        })
-        .collect();
 
     Ok(quote! {
         fn #func_name_workflow() -> Result<
@@ -348,6 +127,71 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_get_vars_from_pat_ident() {
+        let input = syn::parse_quote! {
+            n
+        };
+        let result = get_vars_from_pat(&input).unwrap();
+        let expected = vec![syn::Ident::new("n", input.span())];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_vars_from_pat_tuple() {
+        let input = syn::parse_quote! {
+            (n0, n1)
+        };
+        let result = get_vars_from_pat(&input).unwrap();
+        let expected = vec![
+            syn::Ident::new("n0", input.span()),
+            syn::Ident::new("n1", input.span()),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_vars_from_pat_type() {
+        let input: syn::Pat = syn::Pat::Type(parse_quote!(n: i32));
+        let result = get_vars_from_pat(&input).unwrap();
+        let expected = vec![syn::Ident::new("n", input.span())];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_vars_from_pat_type_tuple() {
+        let input = syn::Pat::Type(parse_quote! {
+            (n0, n1): (i32, i32)
+        });
+        let result = get_vars_from_pat(&input).unwrap();
+        let expected = vec![
+            syn::Ident::new("n0", input.span()),
+            syn::Ident::new("n1", input.span()),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_types_from_type_path() {
+        let input = syn::parse_quote! {
+            i32
+        };
+        let result = get_types_from_type(&input).unwrap();
+        let expected = vec![syn::parse_quote! { i32 }];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_types_from_type_tuple() {
+        let input = syn::parse_quote! {
+            (i32, i32)
+        };
+        let result = get_types_from_type(&input).unwrap();
+        let expected = vec![syn::parse_quote! { i32 }, syn::parse_quote! { i32 }];
+        assert_eq!(result, expected);
+    }
 
     #[test]
     fn test_workflow_builder_impl() {
@@ -389,7 +233,7 @@ mod tests {
                 let edge_n0 = node_divide2.outputs()[0usize].clone();
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
-                let edge_select_0 = node_select_0.outputs()[0usize].clone();
+                let edge_select = node_select_0.outputs()[0usize].clone();
                 let edge_true_0 = node_branch_0.outputs()[0usize].clone();
                 let edge_false_0 = node_branch_0.outputs()[1usize].clone();
                 let edge_double = node_double.outputs()[0usize].clone();
@@ -402,12 +246,12 @@ mod tests {
                 assert_eq!(node_double.outputs().len(), 1usize);
                 assert_eq!(node_none.outputs().len(), 1usize);
 
-                let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0)?;
-                let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0)?;
-                let node_select_0 = node_select_0.build(vec![edge_double.clone(), edge_none.clone()], 0)?;
-                let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0)?;
-                let node_double = node_double.build(vec![edge_true_0.clone(), edge_n1.clone()], 1)?;
-                let node_none = node_none.build(vec![edge_false_0.clone()], 1)?;
+                let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0usize)?;
+                let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0usize)?;
+                let node_select_0 = node_select_0.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
+                let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0usize)?;
+                let node_double = node_double.build(vec![edge_true_0.clone(), edge_n1.clone()], 1usize)?;
+                let node_none = node_none.build(vec![edge_false_0.clone()], 1usize)?;
 
                 let builder = WorkflowBuilder::default()
                     .add_node(node_divide2)?
@@ -417,7 +261,7 @@ mod tests {
                     .add_node(node_double)?
                     .add_node(node_none)?;
 
-                Ok((wf_id, builder, vec![edge_n], vec![edge_select_0]))
+                Ok((wf_id, builder, vec![edge_n], vec![edge_select]))
             }
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
