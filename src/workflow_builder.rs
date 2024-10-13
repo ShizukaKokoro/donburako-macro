@@ -1,24 +1,27 @@
+use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::{Error, Result};
+use syn::{parse_quote, Error, Result};
 
-fn get_vars_from_pat(pat: &syn::Pat) -> Result<Vec<syn::Ident>> {
+fn get_vars_from_pat(pat: &syn::Pat, allow_tuple: bool) -> Result<Vec<syn::Ident>> {
     let mut vars = Vec::new();
     match pat {
         syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
             vars.push(ident.clone());
         }
         syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
+            if !allow_tuple {
+                return Err(Error::new(pat.span(), "Invalid tuple pattern"));
+            }
             for elem in elems.iter() {
-                vars.extend(get_vars_from_pat(elem)?);
+                vars.extend(get_vars_from_pat(elem, true)?);
             }
         }
         syn::Pat::Type(syn::PatType { pat, .. }) => {
-            println!("pat: {:?}", pat);
-            vars.extend(get_vars_from_pat(pat)?);
+            vars.extend(get_vars_from_pat(pat, allow_tuple)?);
         }
         _ => {
             return Err(Error::new(pat.span(), "Invalid pattern"));
@@ -27,15 +30,18 @@ fn get_vars_from_pat(pat: &syn::Pat) -> Result<Vec<syn::Ident>> {
     Ok(vars)
 }
 
-fn get_types_from_type(ty: &syn::Type) -> Result<Vec<syn::TypePath>> {
+fn get_types_from_type(ty: &syn::Type, allow_tuple: bool) -> Result<Vec<syn::TypePath>> {
     let mut types = Vec::new();
     match ty {
         syn::Type::Path(path) => {
             types.push(path.clone());
         }
         syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
+            if !allow_tuple {
+                return Err(Error::new(ty.span(), "Invalid tuple type"));
+            }
             for elem in elems.iter() {
-                types.extend(get_types_from_type(elem)?);
+                types.extend(get_types_from_type(elem, true)?);
             }
         }
         _ => {
@@ -64,6 +70,9 @@ fn edge_name(ident: &syn::Ident) -> syn::Ident {
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
+    pub node_idents: Vec<syn::Ident>,
+    pub builder_paths: Vec<TokenStream>,
+    pub branch_cnt: usize,
 }
 impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_await(&mut self, expr_await: &'ast syn::ExprAwait) {
@@ -80,9 +89,51 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         }
     }
 
-    fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {}
+    fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {
+        match expr_call.func.as_ref().clone() {
+            syn::Expr::Path(mut expr_path) => {
+                self.node_idents
+                    .push(expr_path.path.segments.last().unwrap().ident.clone());
+                builder_name(&mut expr_path.path);
+                self.builder_paths.push(parse_quote! { #expr_path::new() });
+            }
+            _ => {
+                self.err = Some(Error::new(
+                    expr_call.span(),
+                    "Call expression must be a path expression",
+                ));
+            }
+        }
+    }
 
-    fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {}
+    fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
+        if let syn::ExprIf {
+            cond,
+            then_branch,
+            else_branch: Some((_, expr)),
+            ..
+        } = expr_if
+        {
+            self.node_idents.push(syn::Ident::new(
+                &format!("branch_{}", self.branch_cnt),
+                cond.span(),
+            ));
+            self.builder_paths.push(parse_quote! { branch_builder!() });
+
+            self.visit_block(then_branch);
+            if let syn::Expr::If(expr_if_) = expr.as_ref() {
+                self.visit_expr_if(expr_if_);
+                return;
+            } else if let syn::Expr::Block(expr_block) = expr.as_ref() {
+                self.visit_block(&expr_block.block);
+                return;
+            }
+        }
+        self.err = Some(Error::new(
+            expr_if.span(),
+            "If expression must have an else branch",
+        ));
+    }
 
     fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
         match stmt {
@@ -93,7 +144,25 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             }) => match expr.as_ref() {
                 syn::Expr::Await(expr_await) => self.visit_expr_await(expr_await),
                 syn::Expr::Call(expr_call) => self.visit_expr_call(expr_call),
-                syn::Expr::If(expr_if) => self.visit_expr_if(expr_if),
+                syn::Expr::If(expr_if) => {
+                    let ident = get_vars_from_pat(pat, false).unwrap().pop().unwrap();
+                    self.node_idents.push(ident);
+                    let ty = match pat {
+                        syn::Pat::Type(syn::PatType { ty, .. }) => {
+                            get_types_from_type(ty, false).unwrap().pop().unwrap()
+                        }
+                        _ => {
+                            self.err = Some(Error::new(
+                                pat.span(),
+                                "Local variable of if statement must be an identifier",
+                            ));
+                            return;
+                        }
+                    };
+                    self.builder_paths
+                        .push(parse_quote! { select_builder!(#ty) });
+                    self.visit_expr_if(expr_if)
+                }
                 _ => {
                     self.err = Some(Error::new(
                         expr.span(),
@@ -102,6 +171,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 }
             },
             syn::Stmt::Expr(expr, _) => match expr {
+                syn::Expr::Path(expr_path) => {}
                 syn::Expr::Return(expr_return) => {}
                 _ => {
                     self.err = Some(Error::new(
@@ -147,11 +217,26 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         return Err(err);
     }
 
-    let node_var_let: Vec<TokenStream> = Vec::new();
+    let mut node_var_let: Vec<TokenStream> = Vec::new();
     let edge_exprs: Vec<TokenStream> = Vec::new();
-    let node_output_asserts: Vec<TokenStream> = Vec::new();
-    let build_nodes: Vec<TokenStream> = Vec::new();
-    let add_nodes: Vec<TokenStream> = Vec::new();
+    let mut node_output_asserts: Vec<TokenStream> = Vec::new();
+    let mut build_nodes: Vec<TokenStream> = Vec::new();
+    let mut add_nodes: Vec<TokenStream> = Vec::new();
+    for (ident, path) in visitor.node_idents.iter().zip(visitor.builder_paths.iter()) {
+        let node_name = node_name(ident);
+        node_var_let.push(quote! {
+            let #node_name = #path;
+        });
+        node_output_asserts.push(quote! {
+            assert_eq!(#node_name.outputs().len(), 1usize);
+        });
+        build_nodes.push(quote! {
+            let #node_name = #node_name.build(vec![], 0usize)?;
+        });
+        add_nodes.push(quote! {
+            .add_node(#node_name)?
+        });
+    }
 
     let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
         let mut start_edge_exprs = Vec::new();
@@ -203,7 +288,7 @@ mod tests {
         let input = syn::parse_quote! {
             n
         };
-        let result = get_vars_from_pat(&input).unwrap();
+        let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![syn::Ident::new("n", input.span())];
         assert_eq!(result, expected);
     }
@@ -213,7 +298,7 @@ mod tests {
         let input = syn::parse_quote! {
             (n0, n1)
         };
-        let result = get_vars_from_pat(&input).unwrap();
+        let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![
             syn::Ident::new("n0", input.span()),
             syn::Ident::new("n1", input.span()),
@@ -224,7 +309,7 @@ mod tests {
     #[test]
     fn test_get_vars_from_pat_type() {
         let input: syn::Pat = syn::Pat::Type(parse_quote!(n: i32));
-        let result = get_vars_from_pat(&input).unwrap();
+        let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![syn::Ident::new("n", input.span())];
         assert_eq!(result, expected);
     }
@@ -234,7 +319,7 @@ mod tests {
         let input = syn::Pat::Type(parse_quote! {
             (n0, n1): (i32, i32)
         });
-        let result = get_vars_from_pat(&input).unwrap();
+        let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![
             syn::Ident::new("n0", input.span()),
             syn::Ident::new("n1", input.span()),
@@ -247,7 +332,7 @@ mod tests {
         let input = syn::parse_quote! {
             i32
         };
-        let result = get_types_from_type(&input).unwrap();
+        let result = get_types_from_type(&input, true).unwrap();
         let expected = vec![syn::parse_quote! { i32 }];
         assert_eq!(result, expected);
     }
@@ -257,7 +342,7 @@ mod tests {
         let input = syn::parse_quote! {
             (i32, i32)
         };
-        let result = get_types_from_type(&input).unwrap();
+        let result = get_types_from_type(&input, true).unwrap();
         let expected = vec![syn::parse_quote! { i32 }, syn::parse_quote! { i32 }];
         assert_eq!(result, expected);
     }
@@ -293,7 +378,7 @@ mod tests {
 
                 let node_divide2 = Divide2Builder::new();
                 let node_is_even = some::IsEvenBuilder::new();
-                let node_select_0 = select_builder!(Option<i32>);
+                let node_select = select_builder!(Option<i32>);
                 let node_branch_0 = branch_builder!();
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
@@ -302,7 +387,7 @@ mod tests {
                 let edge_n0 = node_divide2.outputs()[0usize].clone();
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
-                let edge_select = node_select_0.outputs()[0usize].clone();
+                let edge_select = node_select.outputs()[0usize].clone();
                 let edge_true_0 = node_branch_0.outputs()[0usize].clone();
                 let edge_false_0 = node_branch_0.outputs()[1usize].clone();
                 let edge_double = node_double.outputs()[0usize].clone();
@@ -310,14 +395,14 @@ mod tests {
 
                 assert_eq!(node_divide2.outputs().len(), 2usize);
                 assert_eq!(node_is_even.outputs().len(), 1usize);
-                assert_eq!(node_select_0.outputs().len(), 1usize);
+                assert_eq!(node_select.outputs().len(), 1usize);
                 assert_eq!(node_branch_0.outputs().len(), 2usize);
                 assert_eq!(node_double.outputs().len(), 1usize);
                 assert_eq!(node_none.outputs().len(), 1usize);
 
                 let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0usize)?;
                 let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0usize)?;
-                let node_select_0 = node_select_0.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
+                let node_select = node_select.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
                 let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0usize)?;
                 let node_double = node_double.build(vec![edge_true_0.clone(), edge_n1.clone()], 1usize)?;
                 let node_none = node_none.build(vec![edge_false_0.clone()], 1usize)?;
@@ -325,7 +410,7 @@ mod tests {
                 let builder = WorkflowBuilder::default()
                     .add_node(node_divide2)?
                     .add_node(node_is_even)?
-                    .add_node(node_select_0)?
+                    .add_node(node_select)?
                     .add_node(node_branch_0)?
                     .add_node(node_double)?
                     .add_node(node_none)?;
