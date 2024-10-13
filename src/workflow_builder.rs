@@ -190,6 +190,18 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             }
         })
         .collect();
+
+    /*
+    let node_output_asserts: Vec<_> = visitor
+        .node_var_names
+        .iter()
+        .map(|name| {
+            quote! {
+                assert_eq!(#name.outputs().len(), 0);
+            }
+        })
+        .collect();
+    */
     let add_nodes = visitor.add_nodes;
 
     let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
@@ -219,6 +231,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             let wf_id = WorkflowId::new(#func_name_str);
             #(#node_var_let)*
             #(#start_edge_exprs)*
+            //#(#node_output_asserts)*
 
             let builder = WorkflowBuilder::default()
                 #(#add_nodes)*
