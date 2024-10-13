@@ -254,11 +254,11 @@ mod tests {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
                 let select: Option<i32> = if even {
-                    let res = double(n1);
-                    res
+                    let double = double(n1);
+                    double
                 } else {
-                    let res = none();
-                    res
+                    let none = none();
+                    none
                 };
                 return select;
             }
@@ -321,11 +321,11 @@ mod tests {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
                 let select: Option<i32> = if even {
-                    let res = double(n1);
-                    res
+                    let double = double(n1);
+                    double
                 } else {
-                    let res = none();
-                    res
+                    let none = none();
+                    none
                 };
                 return select;
             }
