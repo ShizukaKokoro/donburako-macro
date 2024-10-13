@@ -73,6 +73,7 @@ struct StmtVisitor {
     pub node_idents: Vec<syn::Ident>,
     pub builder_paths: Vec<TokenStream>,
     pub branch_cnt: usize,
+    pub output_edge: Vec<syn::Ident>,
 }
 impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_await(&mut self, expr_await: &'ast syn::ExprAwait) {
@@ -135,6 +136,34 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         ));
     }
 
+    fn visit_expr_return(&mut self, expr_return: &'ast syn::ExprReturn) {
+        if !self.output_edge.is_empty() {
+            self.err = Some(Error::new(
+                expr_return.span(),
+                "Return expression must be only once",
+            ));
+            return;
+        }
+        if expr_return.expr.is_none() {
+            self.err = Some(Error::new(
+                expr_return.span(),
+                "Return expression must have an expression",
+            ));
+            return;
+        }
+        let expr_return = expr_return.expr.as_ref().unwrap().as_ref();
+        if let syn::Expr::Path(syn::ExprPath { path, .. }) = expr_return {
+            if let Some(ident) = path.get_ident() {
+                self.output_edge.push(ident.clone());
+            }
+        } else {
+            self.err = Some(Error::new(
+                expr_return.span(),
+                "Return expression must be a path expression",
+            ));
+        }
+    }
+
     fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
         match stmt {
             syn::Stmt::Local(syn::Local {
@@ -172,7 +201,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             },
             syn::Stmt::Expr(expr, _) => match expr {
                 syn::Expr::Path(expr_path) => {}
-                syn::Expr::Return(expr_return) => {}
+                syn::Expr::Return(expr_return) => self.visit_expr_return(expr_return),
                 _ => {
                     self.err = Some(Error::new(
                         expr.span(),
@@ -250,7 +279,8 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         }
         (start_edge_exprs, start_edges)
     };
-    let end_edges: Vec<syn::Ident> = Vec::new();
+    let end_edges: Vec<syn::Ident> = visitor.output_edge.iter().map(edge_name).collect();
+    let end_edges: Vec<syn::Ident> = Vec::new(); // TODO: エッジを取得してから削除
 
     Ok(quote! {
         fn #func_name_workflow() -> Result<
