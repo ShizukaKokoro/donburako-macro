@@ -185,7 +185,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let node_var_let = visitor.node_var_let;
     let add_nodes = visitor.add_nodes;
 
-    let (input_edge_exprs, input_edges) = {
+    let (input_edge_exprs, input_edges): (Vec<_>, Vec<syn::Ident>) = {
         let mut input_edge_exprs = Vec::new();
         let mut input_edges = Vec::new();
         for (name, arg) in func_args {
@@ -193,7 +193,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             input_edge_exprs.push(quote! {
                 let #edge_name = Arc::new(Edge::new::<#arg>());
             });
-            input_edges.push(quote! { #edge_name });
+            input_edges.push(edge_name);
         }
         (input_edge_exprs, input_edges)
     };
