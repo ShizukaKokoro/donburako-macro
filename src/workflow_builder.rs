@@ -70,11 +70,12 @@ fn edge_name(ident: &syn::Ident) -> syn::Ident {
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_names: Vec<syn::Ident>,
+    pub node_names: Vec<(syn::Ident, Vec<syn::Ident>)>, // (ノードの名前, エッジの名前)
     pub builder_paths: Vec<TokenStream>,
     pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
     pub tmp_vars: Vec<syn::Ident>,
     pub branch_cnt: usize,
+    pub tmp_select: Option<usize>,
     pub output_edge: Vec<syn::Ident>,
 }
 impl<'ast> Visit<'ast> for StmtVisitor {
@@ -100,7 +101,28 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
                     self.edge_idents.push((edge_name(ident), node_idx, i));
                 }
-                self.node_names.push(node_name(&ident));
+                let mut edge_vec = Vec::new();
+                for arg in expr_call.args.iter() {
+                    if let syn::Expr::Path(expr_path) = arg {
+                        if let Some(ident) = expr_path.path.get_ident() {
+                            edge_vec.push(edge_name(ident));
+                        } else {
+                            self.err = Some(Error::new(
+                                arg.span(),
+                                "Call expression argument must be an identifier",
+                            ));
+                            return;
+                        }
+                    } else {
+                        self.err = Some(Error::new(
+                            arg.span(),
+                            "Call expression argument must be a path expression",
+                        ));
+                        return;
+                    }
+                }
+                println!("{:?}", edge_vec);
+                self.node_names.push((node_name(&ident), edge_vec));
                 builder_name(&mut expr_path.path);
                 self.builder_paths.push(parse_quote! { #expr_path::new() });
             }
@@ -132,9 +154,29 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 node_idx,
                 1,
             ));
-            self.node_names.push(syn::Ident::new(
-                &format!("node_branch_{}", self.branch_cnt),
-                cond.span(),
+            let edge_vars = match cond.as_ref() {
+                syn::Expr::Path(expr_path) => {
+                    if let Some(ident) = expr_path.path.get_ident() {
+                        vec![edge_name(ident)]
+                    } else {
+                        self.err = Some(Error::new(
+                            cond.span(),
+                            "If expression condition must be an identifier",
+                        ));
+                        return;
+                    }
+                }
+                _ => {
+                    self.err = Some(Error::new(
+                        cond.span(),
+                        "If expression condition must be a path expression",
+                    ));
+                    return;
+                }
+            };
+            self.node_names.push((
+                syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), cond.span()),
+                edge_vars,
             ));
             self.builder_paths.push(parse_quote! { branch_builder!() });
 
@@ -198,8 +240,9 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         let ident = self.tmp_vars.pop().unwrap();
                         self.tmp_vars.clear();
                         let node_idx = self.node_names.len();
+                        self.tmp_select = Some(node_idx);
                         self.edge_idents.push((edge_name(&ident), node_idx, 0));
-                        self.node_names.push(node_name(&ident));
+                        self.node_names.push((node_name(&ident), vec![]));
                         let ty = match pat {
                             syn::Pat::Type(syn::PatType { ty, .. }) => {
                                 get_types_from_type(ty, false).unwrap().pop().unwrap()
@@ -225,7 +268,23 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 }
             }
             syn::Stmt::Expr(expr, _) => match expr {
-                syn::Expr::Path(expr_path) => {}
+                syn::Expr::Path(syn::ExprPath { path, .. }) => {
+                    if let Some(select_idx) = self.tmp_select {
+                        if let Some(ident) = path.get_ident() {
+                            self.node_names[select_idx].1.push(edge_name(ident));
+                        } else {
+                            self.err = Some(Error::new(
+                                expr.span(),
+                                "End of if statement must be a local variable",
+                            ));
+                        }
+                    } else {
+                        self.err = Some(Error::new(
+                            expr.span(),
+                            "End of if statement must be require a local variable",
+                        ));
+                    }
+                }
                 syn::Expr::Return(expr_return) => self.visit_expr_return(expr_return),
                 _ => {
                     self.err = Some(Error::new(
@@ -274,12 +333,13 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let mut node_var_let: Vec<TokenStream> = Vec::new();
     let mut build_nodes: Vec<TokenStream> = Vec::new();
     let mut add_nodes: Vec<TokenStream> = Vec::new();
-    for (node_name, path) in visitor.node_names.iter().zip(visitor.builder_paths.iter()) {
+    for ((node_name, edge_vec), path) in visitor.node_names.iter().zip(visitor.builder_paths.iter())
+    {
         node_var_let.push(quote! {
             let #node_name = #path;
         });
         build_nodes.push(quote! {
-            let #node_name = #node_name.build(vec![], 0usize)?;
+            let #node_name = #node_name.build(vec![#(#edge_vec.clone()),*], 0usize)?;
         });
         add_nodes.push(quote! {
             .add_node(#node_name)?
@@ -291,7 +351,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let mut cnt = 0usize;
     let mut pre = None;
     for (edge_name, node_idx, edge_idx) in visitor.edge_idents.iter() {
-        let node_name = &visitor.node_names[*node_idx];
+        let node_name = &visitor.node_names[*node_idx].0;
         if pre.is_none() {
             cnt = 0;
             pre = Some(node_name.clone());
