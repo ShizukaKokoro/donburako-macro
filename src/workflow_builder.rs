@@ -233,14 +233,14 @@ mod tests {
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
-                let selected: Option<i32> = if even {
+                let select: Option<i32> = if even {
                     let res = double(n1);
                     res
                 } else {
                     let res = none();
                     res
                 };
-                return selected;
+                return select;
             }
         };
         let result = workflow_builder_impl(quote! {}, input).to_string();
@@ -267,18 +267,25 @@ mod tests {
                 let edge_n0 = node_divide2.outputs()[0].clone();
                 let edge_n1 = node_divide2.outputs()[1].clone();
                 let edge_even = node_is_even.outputs()[0].clone();
-                let edge_true = node_branch_0.outputs()[0].clone();
-                let edge_false = node_branch_0.outputs()[1].clone();
+                let edge_true_0 = node_branch_0.outputs()[0].clone();
+                let edge_false_0 = node_branch_0.outputs()[1].clone();
                 let edge_double = node_double.outputs()[0].clone();
                 let edge_none = node_none.outputs()[0].clone();
-                let edge_select = node_select_0.outputs()[0].clone();
+                let edge_select = node_select0.outputs()[0].clone();
+
+                assert_eq!(node_divide2.outputs().len(), 2);
+                assert_eq!(node_is_even.outputs().len(), 1);
+                assert_eq!(node_branch0.outputs().len(), 2);
+                assert_eq!(node_double.outputs().len(), 1);
+                assert_eq!(node_none.outputs().len(), 1);
+                assert_eq!(node_select0.outputs().len(), 1);
 
                 let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0)?;
                 let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0)?;
                 let node_select_0 = node_select_0.build(vec![edge_double.clone(), edge_none.clone()], 0)?;
                 let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0)?;
-                let node_double = node_double.build(vec![edge_true.clone(), edge_n1.clone()], 1)?;
-                let node_none = node_none.build(vec![edge_false.clone()], 1)?;
+                let node_double = node_double.build(vec![edge_true_0.clone(), edge_n1.clone()], 1)?;
+                let node_none = node_none.build(vec![edge_false_0.clone()], 1)?;
 
                 let builder = WorkflowBuilder::default()
                     .add_node(node_divide2)?
@@ -293,14 +300,14 @@ mod tests {
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
-                let selected: Option<i32> = if even {
+                let select: Option<i32> = if even {
                     let res = double(n1);
                     res
                 } else {
                     let res = none();
                     res
                 };
-                return selected;
+                return select;
             }
         }
         .to_string();
