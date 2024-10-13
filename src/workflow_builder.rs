@@ -185,19 +185,19 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let node_var_let = visitor.node_var_let;
     let add_nodes = visitor.add_nodes;
 
-    let (input_edge_exprs, input_edges): (Vec<_>, Vec<syn::Ident>) = {
-        let mut input_edge_exprs = Vec::new();
-        let mut input_edges = Vec::new();
+    let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
+        let mut start_edge_exprs = Vec::new();
+        let mut start_edges = Vec::new();
         for (name, arg) in func_args {
             let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
-            input_edge_exprs.push(quote! {
+            start_edge_exprs.push(quote! {
                 let #edge_name = Arc::new(Edge::new::<#arg>());
             });
-            input_edges.push(edge_name);
+            start_edges.push(edge_name);
         }
-        (input_edge_exprs, input_edges)
+        (start_edge_exprs, start_edges)
     };
-    let output_edges: Vec<syn::Ident> = Vec::new();
+    let end_edges: Vec<syn::Ident> = Vec::new();
 
     Ok(quote! {
         fn #func_name_workflow() -> Result<
@@ -211,12 +211,12 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         > {
             let wf_id = WorkflowId::new(#func_name_str);
             #(#node_var_let)*
-            #(#input_edge_exprs)*
+            #(#start_edge_exprs)*
 
             let builder = WorkflowBuilder::default()
                 #(#add_nodes)*
                 ;
-            Ok((wf_id, builder, vec![#(#input_edges),*], vec![#(#output_edges),*]))
+            Ok((wf_id, builder, vec![#(#start_edges),*], vec![#(#end_edges),*]))
         }
         #func
     })
