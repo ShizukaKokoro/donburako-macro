@@ -70,7 +70,7 @@ fn edge_name(ident: &syn::Ident) -> syn::Ident {
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_idents: Vec<syn::Ident>,
+    pub node_names: Vec<syn::Ident>,
     pub builder_paths: Vec<TokenStream>,
     pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
     pub tmp_vars: Vec<syn::Ident>,
@@ -95,12 +95,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {
         match expr_call.func.as_ref().clone() {
             syn::Expr::Path(mut expr_path) => {
-                let node = expr_path.path.segments.last().unwrap().ident.clone();
-                let node_idx = self.node_idents.len();
+                let ident = expr_path.path.segments.last().unwrap().ident.clone();
+                let node_idx = self.node_names.len();
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
                     self.edge_idents.push((edge_name(ident), node_idx, i));
                 }
-                self.node_idents.push(node);
+                self.node_names.push(node_name(&ident));
                 builder_name(&mut expr_path.path);
                 self.builder_paths.push(parse_quote! { #expr_path::new() });
             }
@@ -121,7 +121,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             ..
         } = expr_if
         {
-            let node_idx = self.node_idents.len();
+            let node_idx = self.node_names.len();
             self.edge_idents.push((
                 syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span()),
                 node_idx,
@@ -132,8 +132,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 node_idx,
                 1,
             ));
-            self.node_idents.push(syn::Ident::new(
-                &format!("branch_{}", self.branch_cnt),
+            self.node_names.push(syn::Ident::new(
+                &format!("node_branch_{}", self.branch_cnt),
                 cond.span(),
             ));
             self.builder_paths.push(parse_quote! { branch_builder!() });
@@ -197,9 +197,9 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     syn::Expr::If(expr_if) => {
                         let ident = self.tmp_vars.pop().unwrap();
                         self.tmp_vars.clear();
-                        let node_idx = self.node_idents.len();
+                        let node_idx = self.node_names.len();
                         self.edge_idents.push((edge_name(&ident), node_idx, 0));
-                        self.node_idents.push(ident);
+                        self.node_names.push(node_name(&ident));
                         let ty = match pat {
                             syn::Pat::Type(syn::PatType { ty, .. }) => {
                                 get_types_from_type(ty, false).unwrap().pop().unwrap()
@@ -274,8 +274,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let mut node_var_let: Vec<TokenStream> = Vec::new();
     let mut build_nodes: Vec<TokenStream> = Vec::new();
     let mut add_nodes: Vec<TokenStream> = Vec::new();
-    for (ident, path) in visitor.node_idents.iter().zip(visitor.builder_paths.iter()) {
-        let node_name = node_name(ident);
+    for (node_name, path) in visitor.node_names.iter().zip(visitor.builder_paths.iter()) {
         node_var_let.push(quote! {
             let #node_name = #path;
         });
@@ -292,11 +291,11 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let mut cnt = 0usize;
     let mut pre = None;
     for (edge_name, node_idx, edge_idx) in visitor.edge_idents.iter() {
-        let node_name = node_name(&visitor.node_idents[*node_idx]);
+        let node_name = &visitor.node_names[*node_idx];
         if pre.is_none() {
             cnt = 0;
             pre = Some(node_name.clone());
-        } else if pre.as_ref().unwrap() != &node_name {
+        } else if pre.as_ref().unwrap() != node_name {
             node_output_asserts.push(quote! {
                 assert_eq!(#pre.outputs().len(), #cnt);
             });
