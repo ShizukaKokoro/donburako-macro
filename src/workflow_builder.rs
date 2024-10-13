@@ -12,7 +12,7 @@ type VarMapItem = (syn::Ident, (usize, usize), Option<(usize, usize)>);
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_var_names: Vec<syn::Ident>,
+    pub node_var_names: Vec<(syn::Ident, usize)>, // (ノードの名前, 出力エッジの数)
     pub node_builders: Vec<TokenStream>,
     pub branch_cnt: usize,
     pub select_cnt: usize,
@@ -92,8 +92,9 @@ impl<'ast> StmtVisitor {
         );
         path.segments.last_mut().unwrap().ident = builder_name;
         let from = self.node_var_names.len();
+        let vars_len = vars.len();
         self.set_var(vars, from);
-        self.node_var_names.push(node_var.clone());
+        self.node_var_names.push((node_var.clone(), vars_len));
         self.node_builders.push(quote! { #path::new() });
     }
 
@@ -138,7 +139,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             ],
             from,
         );
-        self.node_var_names.push(branch_name.clone());
+        self.node_var_names.push((branch_name.clone(), 2));
         self.node_builders.push(quote! { branch_builder!() });
         self.branch_cnt += 1;
         let syn::ExprIf {
@@ -185,7 +186,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     );
                     let from = self.node_var_names.len();
                     self.set_var(vec![select_var.clone()], from);
-                    self.node_var_names.push(select_name.clone());
+                    self.node_var_names.push((select_name.clone(), 1));
                     self.node_builders.push(quote! { select_builder!(#ty) });
                 }
                 self.visit_local_init_with_vars(local_init, vars);
@@ -231,9 +232,9 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     }
 
     let mut node_var_let = Vec::new();
-    //let mut node_output_asserts = Vec::new();
+    let mut node_output_asserts = Vec::new();
     let mut add_nodes = Vec::new();
-    for (name, builder) in visitor
+    for ((name, output_edge_cnt), builder) in visitor
         .node_var_names
         .iter()
         .zip(visitor.node_builders.iter())
@@ -241,11 +242,9 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         node_var_let.push(quote! {
             let #name = #builder;
         });
-        /*
         node_output_asserts.push(quote! {
-            assert_eq!(#name.outputs().len(), 0);
+            assert_eq!(#name.outputs().len(), #output_edge_cnt);
         });
-         */
         add_nodes.push(quote! {
             .add_node(#name)?
         });
@@ -273,7 +272,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         .iter()
         .map(|(name, (from, from_idx), _)| {
             let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
-            let from_node = &visitor.node_var_names[*from];
+            let from_node = &visitor.node_var_names[*from].0;
             println!("from_node: {:?}", from_node);
             quote! {
                 let #edge_name = #from_node.outputs()[#from_idx].clone();
@@ -295,7 +294,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             #(#node_var_let)*
             #(#start_edge_exprs)*
             #(#edge_exprs)*
-            //#(#node_output_asserts)*
+            #(#node_output_asserts)*
 
             let builder = WorkflowBuilder::default()
                 #(#add_nodes)*
@@ -357,12 +356,12 @@ mod tests {
                 let edge_double = node_double.outputs()[0usize].clone();
                 let edge_none = node_none.outputs()[0usize].clone();
 
-                assert_eq!(node_divide2.outputs().len(), 2);
-                assert_eq!(node_is_even.outputs().len(), 1);
-                assert_eq!(node_select_0.outputs().len(), 1);
-                assert_eq!(node_branch_0.outputs().len(), 2);
-                assert_eq!(node_double.outputs().len(), 1);
-                assert_eq!(node_none.outputs().len(), 1);
+                assert_eq!(node_divide2.outputs().len(), 2usize);
+                assert_eq!(node_is_even.outputs().len(), 1usize);
+                assert_eq!(node_select_0.outputs().len(), 1usize);
+                assert_eq!(node_branch_0.outputs().len(), 2usize);
+                assert_eq!(node_double.outputs().len(), 1usize);
+                assert_eq!(node_none.outputs().len(), 1usize);
 
                 let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0)?;
                 let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0)?;
