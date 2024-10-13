@@ -1,10 +1,13 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::collections::HashMap;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{Error, Result};
+
+type VarMapItem = (syn::Ident, (usize, usize), Option<(usize, usize)>);
 
 #[derive(Debug, Default)]
 struct StmtVisitor {
@@ -13,17 +16,51 @@ struct StmtVisitor {
     pub node_builders: Vec<TokenStream>,
     pub branch_cnt: usize,
     pub select_cnt: usize,
+    pub var_set: HashMap<syn::Ident, usize>,
+    pub var_map: Vec<VarMapItem>,
 }
-impl StmtVisitor {
+impl<'ast> StmtVisitor {
+    fn get_vars(&mut self, pat: &syn::Pat) -> Vec<syn::Ident> {
+        let mut vars = Vec::new();
+        match pat {
+            syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
+                vars.push(ident.clone());
+            }
+            syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
+                for elem in elems.iter() {
+                    vars.extend(self.get_vars(elem));
+                }
+            }
+            syn::Pat::Type(syn::PatType { pat, .. }) => {
+                vars.extend(self.get_vars(pat));
+            }
+            _ => {
+                self.err = Some(Error::new(pat.span(), "Invalid pattern"));
+            }
+        }
+        vars
+    }
+
+    fn set_var(&mut self, vars: Vec<syn::Ident>, from: usize) {
+        for (i, v) in vars.iter().enumerate() {
+            if self.var_set.insert(v.clone(), self.var_map.len()).is_some() {
+                self.err = Some(Error::new(v.span(), "Variable already exists"));
+            }
+            self.var_map.push((v.clone(), (from, i), None));
+        }
+    }
+
     fn inner_visit_stmt(&mut self, stmts: &[syn::Stmt]) {
         for (i, stmt) in stmts.iter().enumerate() {
             if i == stmts.len() - 1 {
                 match stmt {
                     syn::Stmt::Local(syn::Local {
+                        pat,
                         init: Some(local_init),
                         ..
                     }) => {
-                        self.visit_local_init(local_init);
+                        let vars = self.get_vars(pat);
+                        self.visit_local_init_with_vars(local_init, vars);
                     }
                     syn::Stmt::Expr(expr, _) => {}
                     _ => {
@@ -35,9 +72,8 @@ impl StmtVisitor {
             }
         }
     }
-}
-impl<'ast> Visit<'ast> for StmtVisitor {
-    fn visit_expr_call(&mut self, expr_call: &'ast syn::ExprCall) {
+
+    fn visit_expr_call_with_vars(&mut self, expr_call: &'ast syn::ExprCall, vars: Vec<syn::Ident>) {
         let mut path = match expr_call.func.as_ref() {
             syn::Expr::Path(syn::ExprPath { path, .. }) => path.clone(),
             _ => {
@@ -55,13 +91,53 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             name.span(),
         );
         path.segments.last_mut().unwrap().ident = builder_name;
+        let from = self.node_var_names.len();
+        self.set_var(vars, from);
         self.node_var_names.push(node_var.clone());
         self.node_builders.push(quote! { #path::new() });
     }
 
+    fn visit_local_init_with_vars(
+        &mut self,
+        local_init: &'ast syn::LocalInit,
+        vars: Vec<syn::Ident>,
+    ) {
+        match local_init.expr.as_ref() {
+            syn::Expr::Await(expr_await) => match expr_await.base.as_ref() {
+                syn::Expr::Call(expr_call) => {
+                    self.visit_expr_call_with_vars(expr_call, vars);
+                }
+                _ => {
+                    self.err = Some(Error::new(expr_await.base.span(), "Invalid expression"));
+                }
+            },
+            syn::Expr::Call(expr_call) => {
+                self.visit_expr_call_with_vars(expr_call, vars);
+            }
+            syn::Expr::If(expr_if) => {
+                self.visit_expr_if(expr_if);
+            }
+            _ => {
+                self.err = Some(Error::new(local_init.expr.span(), "Invalid expression"));
+            }
+        }
+    }
+}
+impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
         let branch_name =
             syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), expr_if.span());
+        let from = self.node_var_names.len();
+        self.set_var(
+            vec![
+                syn::Ident::new(format!("true_{}", self.branch_cnt).as_str(), expr_if.span()),
+                syn::Ident::new(
+                    format!("false_{}", self.branch_cnt).as_str(),
+                    expr_if.span(),
+                ),
+            ],
+            from,
+        );
         self.node_var_names.push(branch_name.clone());
         self.node_builders.push(quote! { branch_builder!() });
         self.branch_cnt += 1;
@@ -83,29 +159,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             }
         }
     }
-
-    fn visit_local_init(&mut self, local_init: &'ast syn::LocalInit) {
-        match local_init.expr.as_ref() {
-            syn::Expr::Await(expr_await) => match expr_await.base.as_ref() {
-                syn::Expr::Call(expr_call) => {
-                    self.visit_expr_call(expr_call);
-                }
-                _ => {
-                    self.err = Some(Error::new(expr_await.base.span(), "Invalid expression"));
-                }
-            },
-            syn::Expr::Call(expr_call) => {
-                self.visit_expr_call(expr_call);
-            }
-            syn::Expr::If(expr_if) => {
-                self.visit_expr_if(expr_if);
-            }
-            _ => {
-                self.err = Some(Error::new(local_init.expr.span(), "Invalid expression"));
-            }
-        }
-    }
-
     fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
         match stmt {
             syn::Stmt::Local(syn::Local {
@@ -113,6 +166,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 init: Some(local_init),
                 ..
             }) => {
+                let vars = self.get_vars(pat);
                 if let syn::Expr::If(_) = local_init.expr.as_ref() {
                     let ty = match pat {
                         syn::Pat::Type(syn::PatType { ty, .. }) => ty.clone(),
@@ -125,10 +179,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         &format!("node_select_{}", self.select_cnt),
                         local_init.expr.span(),
                     );
+                    let from = self.node_var_names.len();
+                    self.set_var(vec![select_name.clone()], from);
                     self.node_var_names.push(select_name.clone());
                     self.node_builders.push(quote! { select_builder!(#ty) });
                 }
-                self.visit_local_init(local_init);
+                self.visit_local_init_with_vars(local_init, vars);
             }
             syn::Stmt::Expr(
                 syn::Expr::Return(syn::ExprReturn {
@@ -205,6 +261,22 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     };
     let end_edges: Vec<syn::Ident> = Vec::new();
 
+    println!("node_var_names: {:?}", visitor.node_var_names);
+    println!("var_map: {:?}", visitor.var_map);
+
+    let edge_exprs: Vec<_> = visitor
+        .var_map
+        .iter()
+        .map(|(name, (from, from_idx), _)| {
+            let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
+            let from_node = &visitor.node_var_names[*from];
+            println!("from_node: {:?}", from_node);
+            quote! {
+                let #edge_name = #from_node.outputs()[#from_idx].clone();
+            }
+        })
+        .collect();
+
     Ok(quote! {
         fn #func_name_workflow() -> Result<
             (
@@ -218,6 +290,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             let wf_id = WorkflowId::new(#func_name_str);
             #(#node_var_let)*
             #(#start_edge_exprs)*
+            #(#edge_exprs)*
             //#(#node_output_asserts)*
 
             let builder = WorkflowBuilder::default()
@@ -271,14 +344,14 @@ mod tests {
                 let node_none = NoneBuilder::new();
 
                 let edge_n = Arc::new(Edge::new::<i32>());
-                let edge_n0 = node_divide2.outputs()[0].clone();
-                let edge_n1 = node_divide2.outputs()[1].clone();
-                let edge_even = node_is_even.outputs()[0].clone();
-                let edge_true_0 = node_branch_0.outputs()[0].clone();
-                let edge_false_0 = node_branch_0.outputs()[1].clone();
-                let edge_double = node_double.outputs()[0].clone();
-                let edge_none = node_none.outputs()[0].clone();
-                let edge_select = node_select0.outputs()[0].clone();
+                let edge_n0 = node_divide2.outputs()[0usize].clone();
+                let edge_n1 = node_divide2.outputs()[1usize].clone();
+                let edge_even = node_is_even.outputs()[0usize].clone();
+                let edge_select = node_select0.outputs()[0usize].clone();
+                let edge_true_0 = node_branch_0.outputs()[0usize].clone();
+                let edge_false_0 = node_branch_0.outputs()[1usize].clone();
+                let edge_double = node_double.outputs()[0usize].clone();
+                let edge_none = node_none.outputs()[0usize].clone();
 
                 assert_eq!(node_divide2.outputs().len(), 2);
                 assert_eq!(node_is_even.outputs().len(), 1);
