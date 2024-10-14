@@ -228,7 +228,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             name: &'static str,
         }
         impl donburako::node::NodeBuilder for #struct_name {
-            #vis fn new() -> Self {
+            fn new() -> Self {
                 #struct_name {
                     outputs: vec![
                         #(
@@ -244,10 +244,10 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     name: #func_name_str,
                 }
             }
-            #vis fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+            fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                 &self.outputs
             }
-            #vis #build_fn
+            #build_fn
         }
         #fake_func
     })
@@ -352,7 +352,7 @@ mod tests {
                 name: &'static str,
             }
             impl donburako::node::NodeBuilder for IsEvenBuilder {
-                pub fn new() -> Self {
+                fn new() -> Self {
                     IsEvenBuilder {
                         outputs: vec![Arc::new(donburako::edge::Edge::new::<bool>())],
                         func: node_func! {
@@ -365,10 +365,10 @@ mod tests {
                         name: "is_even",
                     }
                 }
-                pub fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                pub fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
                     if let Some(edge) = inputs.get(manage_cnt + 0usize) {
                         if !edge.check_type::<i32>() {
                             return Err(donburako::node::NodeError::EdgeTypeMismatch);
