@@ -71,6 +71,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         &format!("{}Builder", func_name.to_string().to_case(Case::Pascal)),
         func_name.span(),
     );
+    let vis = &func.vis;
     let (func_args, args_type) = {
         let mut args = vec![];
         let mut args_type = vec![];
@@ -213,7 +214,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         fake_func
     };
     Ok(quote! {
-        struct #struct_name {
+        #vis struct #struct_name {
             outputs: Vec<Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a Node,
@@ -227,7 +228,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             name: &'static str,
         }
         impl donburako::node::NodeBuilder for #struct_name {
-            fn new() -> Self {
+            #vis fn new() -> Self {
                 #struct_name {
                     outputs: vec![
                         #(
@@ -243,10 +244,10 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     name: #func_name_str,
                 }
             }
-            fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+            #vis fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                 &self.outputs
             }
-            #build_fn
+            #vis #build_fn
         }
         #fake_func
     })
@@ -330,14 +331,14 @@ mod tests {
     #[test]
     fn test_node_builder_impl2() {
         let input = quote! {
-            fn is_even(n: i32) -> bool {
+            pub fn is_even(n: i32) -> bool {
                 let result = n % 2 == 0;
                 return result;
             }
         };
         let result = node_builder_impl(quote! {}, input).to_string();
         let expected = quote! {
-            struct IsEvenBuilder {
+            pub struct IsEvenBuilder {
                 outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a Node,
@@ -351,7 +352,7 @@ mod tests {
                 name: &'static str,
             }
             impl donburako::node::NodeBuilder for IsEvenBuilder {
-                fn new() -> Self {
+                pub fn new() -> Self {
                     IsEvenBuilder {
                         outputs: vec![Arc::new(donburako::edge::Edge::new::<bool>())],
                         func: node_func! {
@@ -364,10 +365,10 @@ mod tests {
                         name: "is_even",
                     }
                 }
-                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+                pub fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                pub fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
                     if let Some(edge) = inputs.get(manage_cnt + 0usize) {
                         if !edge.check_type::<i32>() {
                             return Err(donburako::node::NodeError::EdgeTypeMismatch);
@@ -387,7 +388,7 @@ mod tests {
                     )))
                 }
             }
-            fn is_even(_: i32) -> bool {
+            pub fn is_even(_: i32) -> bool {
                 return fake::Faker.fake();
             }
         }
