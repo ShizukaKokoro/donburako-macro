@@ -516,7 +516,7 @@ mod tests {
                 let node_divide2 = Divide2Builder::new();
                 let node_is_even = some::IsEvenBuilder::new();
                 let node_select = select_builder!(Option<i32>);
-                let node_branch_0 = branch_builder!();
+                let node_branch_0 = branch_builder!(1, 1);
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
 
@@ -525,8 +525,8 @@ mod tests {
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
                 let edge_select = node_select.outputs()[0usize].clone();
-                let edge_true_0 = node_branch_0.outputs()[0usize].clone();
-                let edge_false_0 = node_branch_0.outputs()[1usize].clone();
+                let edge_true_0_0 = node_branch_0.outputs()[0usize].clone();
+                let edge_false_0_0 = node_branch_0.outputs()[1usize].clone();
                 let edge_double = node_double.outputs()[0usize].clone();
                 let edge_none = node_none.outputs()[0usize].clone();
 
@@ -541,8 +541,8 @@ mod tests {
                 let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0usize)?;
                 let node_select = node_select.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
                 let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0usize)?;
-                let node_double = node_double.build(vec![edge_true_0.clone(), edge_n1.clone()], 1usize)?;
-                let node_none = node_none.build(vec![edge_false_0.clone()], 1usize)?;
+                let node_double = node_double.build(vec![edge_true_0_0.clone(), edge_n1.clone()], 1usize)?;
+                let node_none = node_none.build(vec![edge_false_0_0.clone()], 1usize)?;
 
                 let builder = WorkflowBuilder::default()
                     .add_node(node_divide2)?
@@ -565,6 +565,102 @@ mod tests {
                     none
                 };
                 return select;
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_workflow_builder_parse() {
+        let input = quote! {
+            fn sum(n: i32) -> i32 {
+                let (n0, n1, n2) = divide3(n);
+                let is_zero = is_zero(n0);
+                let selected: i32 = if is_zero {
+                    let zero = zero();
+                    zero
+                } else {
+                    let n1 = sub(n1);
+                    let rec = rec(n1);
+                    let result = add(n2, rec);
+                    result
+                };
+                return selected;
+            }
+        };
+        let result = workflow_builder_parse.parse2(input).unwrap().to_string();
+        let expected = quote! {
+            fn sum_workflow() -> Result<
+                (
+                    donburako::workflow::WorkflowId,
+                    donburako::workflow::WorkflowBuilder,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                ),
+                Box<dyn std::error::Error>,
+            > {
+                let wf_id = WorkflowId::new("sum");
+
+                let node_divide3 = Divide3Builder::new();
+                let node_is_zero = IsZeroBuilder::new();
+                let node_selected = select_builder!(i32);
+                let node_branch_0 = branch_builder!(1usize, 3usize);
+                let node_zero = ZeroBuilder::new();
+                let node_sub = SubBuilder::new();
+                let node_rec = RecBuilder::new();
+                let node_add = AddBuilder::new();
+
+                let edge_n = Arc::new(Edge::new::<i32>());
+                let edge_n0 = node_divide3.outputs()[0usize].clone();
+                let edge_n1 = node_divide3.outputs()[1usize].clone();
+                let edge_n2 = node_divide3.outputs()[2usize].clone();
+                let edge_is_zero = node_is_zero.outputs()[0usize].clone();
+                let edge_selected = node_selected.outputs()[0usize].clone();
+                let edge_true_0_0 = node_branch_0.outputs()[0usize].clone();
+                let edge_false_0_0 = node_branch_0.outputs()[1usize].clone();
+                let edge_false_0_1 = node_branch_0.outputs()[2usize].clone();
+                let edge_false_0_2 = node_branch_0.outputs()[3usize].clone();
+                let edge_zero = node_zero.outputs()[0usize].clone();
+                let edge_sub = node_sub.outputs()[0usize].clone();
+                let edge_rec = node_rec.outputs()[0usize].clone();
+                let edge_add = node_add.outputs()[0usize].clone();
+
+                let node_divide = node_divide3.build(vec![edge_n.clone()], 0usize)?;
+                let node_is_zero = node_is_zero.build(vec![edge_n0], 0usize)?;
+                let node_select = node_select_builder.build(vec![edge_zero, edge_add], 0usize)?;
+                let node_branch = node_branch_0.build(vec![edge_is_zero], 0usize)?;
+                let node_zero = node_zero.build(vec![edge_true_0_0], 1usize)?;
+                let sub = node_sub.build(vec![edge_false_0_0, edge_n1], 1usize)?;
+                let rec = node_rec.build(vec![edge_false_0_1, edge_sub.clone()], 1usize)?;
+                let node_add =
+                    node_add.build(vec![edge_false_0_2, edge_n2.clone(), edge_rec.clone()], 1usize)?;
+
+                let builder = WorkflowBuilder::default()
+                    .add_node(node_divide)?
+                    .add_node(node_is_zero)?
+                    .add_node(node_selected)?
+                    .add_node(node_branch)?
+                    .add_node(node_zero)?
+                    .add_node(sub)?
+                    .add_node(rec)?
+                    .add_node(node_add)?;
+
+                Ok((wf_id, builder, vec![edge_n], vec![edge_selected]))
+            }
+            fn sum(n: i32) -> i32 {
+                let (n0, n1, n2) = divide3(n);
+                let is_zero = is_zero(n0);
+                let selected = if is_zero {
+                    let zero = zero();
+                    zero
+                } else {
+                    let n1 = sub(n1);
+                    let rec = rec(n1);
+                    let result = add(n2, rec);
+                    result
+                };
+                return selected;
             }
         }
         .to_string();
