@@ -162,6 +162,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
             }
             rx.await.unwrap();
             take!{id | end => #(#rtns)=>*}
+            op.finish_workflow_by_execute_id(id).await;
             #(#tl_stmt)*
         }
     })
@@ -213,6 +214,7 @@ mod tests {
                     id | end
                         => rec: i32
                 }
+                op.finish_workflow_by_execute_id(id).await;
                 result = Some(rec);
                 if result.is_some() {
                     flag = true;
@@ -261,6 +263,7 @@ mod tests {
                         => res: i32
                         => f: bool
                 }
+                op.finish_workflow_by_execute_id(id).await;
                 result.push(res);
             }
         }
@@ -307,6 +310,7 @@ mod tests {
                     id | end
                         => res: Option<i32>
                 }
+                op.finish_workflow_by_execute_id(id).await;
                 if let Some(res) = res {
                     result.push(res);
                 }
@@ -357,6 +361,7 @@ mod tests {
                     id | end
                         => res: i32
                 }
+                op.finish_workflow_by_execute_id(id).await;
                 result.push(res);
                 if result.len() == 3 {
                     flag = true;
@@ -409,6 +414,7 @@ mod tests {
                     id | end
                         => res: Option<i32>
                 }
+                op.finish_workflow_by_execute_id(id).await;
                 if let Some(res) = res {
                     result += res;
                 }
