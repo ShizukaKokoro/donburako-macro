@@ -70,11 +70,12 @@ fn edge_name(ident: &syn::Ident) -> syn::Ident {
 #[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
-    pub node_names: Vec<(syn::Ident, Vec<syn::Ident>)>, // (ノードの名前, エッジの名前)
+    pub node_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, エッジの名前, 管理エッジの数)
     pub builder_paths: Vec<TokenStream>,
     pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
     pub tmp_vars: Vec<syn::Ident>,
     pub branch_cnt: usize,
+    pub tmp_manage_edges: Vec<syn::Ident>,
     pub tmp_select: Option<usize>,
     pub output_edge: Vec<syn::Ident>,
 }
@@ -101,7 +102,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
                     self.edge_idents.push((edge_name(ident), node_idx, i));
                 }
-                let mut edge_vec = Vec::new();
+                let mut edge_vec = self.tmp_manage_edges.clone();
+                let manage_cnt = edge_vec.len();
                 for arg in expr_call.args.iter() {
                     if let syn::Expr::Path(expr_path) = arg {
                         if let Some(ident) = expr_path.path.get_ident() {
@@ -121,7 +123,8 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         return;
                     }
                 }
-                self.node_names.push((node_name(&ident), edge_vec));
+                self.node_names
+                    .push((node_name(&ident), edge_vec, manage_cnt));
                 builder_name(&mut expr_path.path);
                 self.builder_paths.push(parse_quote! { #expr_path::new() });
             }
@@ -140,7 +143,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         let node_idx = self.node_names.len();
         self.tmp_select = Some(node_idx);
         self.edge_idents.push((edge_name(&ident), node_idx, 0));
-        self.node_names.push((node_name(&ident), vec![]));
+        self.node_names.push((node_name(&ident), vec![], 0));
         if let syn::ExprIf {
             cond,
             then_branch,
@@ -149,16 +152,11 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         } = expr_if
         {
             let node_idx = self.node_names.len();
-            self.edge_idents.push((
-                syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span()),
-                node_idx,
-                0,
-            ));
-            self.edge_idents.push((
-                syn::Ident::new(&format!("edge_false_{}", self.branch_cnt), cond.span()),
-                node_idx,
-                1,
-            ));
+            let true_edge = syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span());
+            let false_edge =
+                syn::Ident::new(&format!("edge_false_{}", self.branch_cnt), cond.span());
+            self.edge_idents.push((true_edge.clone(), node_idx, 0));
+            self.edge_idents.push((false_edge.clone(), node_idx, 1));
             let edge_vars = match cond.as_ref() {
                 syn::Expr::Path(expr_path) => {
                     if let Some(ident) = expr_path.path.get_ident() {
@@ -182,17 +180,21 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             self.node_names.push((
                 syn::Ident::new(&format!("node_branch_{}", self.branch_cnt), cond.span()),
                 edge_vars,
+                self.tmp_manage_edges.len(),
             ));
             self.builder_paths.push(parse_quote! { branch_builder!() });
 
+            self.tmp_manage_edges.push(true_edge);
             self.visit_block(then_branch);
+            let _ = self.tmp_manage_edges.pop();
+            self.tmp_manage_edges.push(false_edge);
             if let syn::Expr::If(expr_if_) = expr.as_ref() {
                 self.visit_expr_if(expr_if_);
-                return;
             } else if let syn::Expr::Block(expr_block) = expr.as_ref() {
                 self.visit_block(&expr_block.block);
-                return;
             }
+            let _ = self.tmp_manage_edges.pop();
+            return;
         }
         self.err = Some(Error::new(
             expr_if.span(),
@@ -328,17 +330,19 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     if let Some(err) = visitor.err {
         return Err(err);
     }
+    assert_eq!(visitor.tmp_manage_edges.len(), 0);
 
     let mut node_var_let: Vec<TokenStream> = Vec::new();
     let mut build_nodes: Vec<TokenStream> = Vec::new();
     let mut add_nodes: Vec<TokenStream> = Vec::new();
-    for ((node_name, edge_vec), path) in visitor.node_names.iter().zip(visitor.builder_paths.iter())
+    for ((node_name, edge_vec, manage_cnt), path) in
+        visitor.node_names.iter().zip(visitor.builder_paths.iter())
     {
         node_var_let.push(quote! {
             let #node_name = #path;
         });
         build_nodes.push(quote! {
-            let #node_name = #node_name.build(vec![#(#edge_vec.clone()),*], 0usize)?;
+            let #node_name = #node_name.build(vec![#(#edge_vec.clone()),*], #manage_cnt)?;
         });
         add_nodes.push(quote! {
             .add_node(#node_name)?
