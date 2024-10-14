@@ -324,6 +324,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         }
         panic!("Invalid function argument");
     }));
+    let func_vis = &func.vis;
 
     let mut visitor = StmtVisitor::default();
     visitor.visit_block(&func.block);
@@ -389,7 +390,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let end_edges: Vec<syn::Ident> = visitor.output_edge.iter().map(edge_name).collect();
 
     Ok(quote! {
-        fn #func_name_workflow() -> Result<
+        #func_vis fn #func_name_workflow() -> Result<
             (
                 donburako::workflow::WorkflowId,
                 donburako::workflow::WorkflowBuilder,
