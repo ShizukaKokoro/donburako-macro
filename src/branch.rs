@@ -48,7 +48,7 @@ pub fn branch_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     outputs: vec![#( #outputs ),*],
                     func: node_func! {
                         take! {
-                            exec_id | self_.inputs()
+                            exec_id | self_.inputs() | self_.manage_cnt()
                                 => state: bool
                         }
                         if state {
@@ -130,7 +130,7 @@ mod tests {
                         outputs: vec![Arc::new(donburako::edge::Edge::new::<()>()), Arc::new(donburako::edge::Edge::new::<()>()), Arc::new(donburako::edge::Edge::new::<()>())],
                         func: node_func! {
                             take! {
-                                exec_id | self_.inputs()
+                                exec_id | self_.inputs() | self_.manage_cnt()
                                     => state: bool
                             }
                             if state {

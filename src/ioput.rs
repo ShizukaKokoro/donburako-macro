@@ -29,7 +29,7 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
 
     Ok(quote! {
         take! {
-            exec_id | self_.inputs()
+            exec_id | self_.inputs() | self_.manage_cnt()
                 #(#stmts)*
         }
     })
@@ -73,7 +73,7 @@ mod tests {
         let result = input_parse.parse2(input).unwrap();
         let expected = quote! {
             take! {
-                exec_id | self_.inputs()
+                exec_id | self_.inputs() | self_.manage_cnt()
                     => n: i32
             }
         };
@@ -88,7 +88,7 @@ mod tests {
         let result = input_impl(input).to_string();
         let expected = quote! {
             take! {
-                exec_id | self_.inputs()
+                exec_id | self_.inputs() | self_.manage_cnt()
                     => _: ()
                     => arg_0to1_int: fizz::i32
                     => arg_0to1_str: &str

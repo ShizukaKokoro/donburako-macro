@@ -13,7 +13,20 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
     let mut stmts = Vec::new();
     let id = input.parse::<syn::Ident>()?;
     let _ = input.parse::<syn::Token![|]>()?;
-    let from = input.parse::<syn::Expr>()?;
+    let from_manage_cnt = input.parse::<syn::Expr>()?;
+    let (from, manage_cnt) = match from_manage_cnt {
+        syn::Expr::Binary(syn::ExprBinary {
+            left, op, right, ..
+        }) => {
+            if op != syn::BinOp::BitOr(Default::default()) {
+                return Err(Error::new_spanned(op, "expected `from | manage_cnt`"));
+            }
+            let from = left;
+            let manage_cnt = right;
+            (from.as_ref().clone(), Some(manage_cnt))
+        }
+        _ => (from_manage_cnt, None),
+    };
 
     while !input.is_empty() {
         let _ = input.parse::<syn::Token![=>]>()?;
@@ -31,15 +44,23 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
         });
     }
 
-    Ok(quote! {
-        let mut cons = op.get_container(#from, #id).await;
-        let mut con = donburako::container::Container::default();
-        for _ in 0..self_.manage_cnt(){
-            con = cons.pop_front().unwrap();
-            let _: () = con.take().unwrap();
-        }
-        #(#stmts)*
-    })
+    if let Some(manage_cnt) = manage_cnt {
+        Ok(quote! {
+            let mut cons = op.get_container(#from, #id).await;
+            let mut con = donburako::container::Container::default();
+            for _ in 0..#manage_cnt {
+                con = cons.pop_front().unwrap();
+                let _: () = con.take().unwrap();
+            }
+            #(#stmts)*
+        })
+    } else {
+        Ok(quote! {
+            let mut cons = op.get_container(#from, #id).await;
+            let mut con = donburako::container::Container::default();
+            #(#stmts)*
+        })
+    }
 }
 
 pub fn store_impl(tokens: TokenStream) -> TokenStream {
@@ -82,7 +103,7 @@ mod tests {
     #[test]
     fn test_take_parse() {
         let input = quote! {
-            exec_id | self_.inputs()
+            exec_id | self_.inputs() | self_.manage_cnt()
                 => arg_to0: &str
         };
         let result = take_impl(input).to_string();
@@ -103,7 +124,7 @@ mod tests {
     #[test]
     fn test_take_parse_multi() {
         let input = quote! {
-            id | start
+            id | start | 0
                 => _: ()
                 => arg_0to1_int: fizz::i32
                 => arg_0to1_str: &str
@@ -112,7 +133,7 @@ mod tests {
         let expected = quote! {
             let mut cons = op.get_container(start, id).await;
             let mut con = donburako::container::Container::default();
-            for _ in 0..self_.manage_cnt(){
+            for _ in 0..0{
                 con = cons.pop_front().unwrap();
                 let _: () = con.take().unwrap();
             }
