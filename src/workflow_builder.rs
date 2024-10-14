@@ -152,11 +152,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         } = expr_if
         {
             let node_idx = self.node_names.len();
-            let true_edge = syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span());
-            let false_edge =
-                syn::Ident::new(&format!("edge_false_{}", self.branch_cnt), cond.span());
-            self.edge_idents.push((true_edge.clone(), node_idx, 0));
-            self.edge_idents.push((false_edge.clone(), node_idx, 1));
             let edge_vars = match cond.as_ref() {
                 syn::Expr::Path(expr_path) => {
                     if let Some(ident) = expr_path.path.get_ident() {
@@ -182,7 +177,21 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 edge_vars,
                 self.tmp_manage_edges.len(),
             ));
-            self.builder_paths.push(parse_quote! { branch_builder!() });
+
+            let true_cnt = then_branch.stmts.len() - 1;
+            let false_cnt = match expr.as_ref() {
+                syn::Expr::Block(expr_block) => expr_block.block.stmts.len(),
+                _ => 0,
+            } - 1;
+
+            let true_edge = syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span());
+            let false_edge =
+                syn::Ident::new(&format!("edge_false_{}", self.branch_cnt), cond.span());
+            self.edge_idents.push((true_edge.clone(), node_idx, 0));
+            self.edge_idents.push((false_edge.clone(), node_idx, 1));
+
+            self.builder_paths
+                .push(parse_quote! { branch_builder!(#true_cnt, #false_cnt) });
 
             self.tmp_manage_edges.push(true_edge);
             self.visit_block(then_branch);
@@ -516,7 +525,7 @@ mod tests {
                 let node_divide2 = Divide2Builder::new();
                 let node_is_even = some::IsEvenBuilder::new();
                 let node_select = select_builder!(Option<i32>);
-                let node_branch_0 = branch_builder!(1, 1);
+                let node_branch_0 = branch_builder!(1usize, 1usize);
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
 
