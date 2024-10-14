@@ -121,7 +121,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         return;
                     }
                 }
-                println!("{:?}", edge_vec);
                 self.node_names.push((node_name(&ident), edge_vec));
                 builder_name(&mut expr_path.path);
                 self.builder_paths.push(parse_quote! { #expr_path::new() });
@@ -136,6 +135,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
     }
 
     fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
+        let ident = self.tmp_vars.pop().unwrap();
+        self.tmp_vars.clear();
+        let node_idx = self.node_names.len();
+        self.tmp_select = Some(node_idx);
+        self.edge_idents.push((edge_name(&ident), node_idx, 0));
+        self.node_names.push((node_name(&ident), vec![]));
         if let syn::ExprIf {
             cond,
             then_branch,
@@ -237,15 +242,11 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     syn::Expr::Await(expr_await) => self.visit_expr_await(expr_await),
                     syn::Expr::Call(expr_call) => self.visit_expr_call(expr_call),
                     syn::Expr::If(expr_if) => {
-                        let ident = self.tmp_vars.pop().unwrap();
-                        self.tmp_vars.clear();
-                        let node_idx = self.node_names.len();
-                        self.tmp_select = Some(node_idx);
-                        self.edge_idents.push((edge_name(&ident), node_idx, 0));
-                        self.node_names.push((node_name(&ident), vec![]));
-                        let ty = match pat {
+                        match pat {
                             syn::Pat::Type(syn::PatType { ty, .. }) => {
-                                get_types_from_type(ty, false).unwrap().pop().unwrap()
+                                let ty = get_types_from_type(ty, false).unwrap().pop().unwrap();
+                                self.builder_paths
+                                    .push(parse_quote! { select_builder!(#ty) });
                             }
                             _ => {
                                 self.err = Some(Error::new(
@@ -255,8 +256,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                                 return;
                             }
                         };
-                        self.builder_paths
-                            .push(parse_quote! { select_builder!(#ty) });
                         self.visit_expr_if(expr_if);
                     }
                     _ => {
