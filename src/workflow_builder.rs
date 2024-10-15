@@ -590,10 +590,10 @@ mod tests {
                     let zero = zero();
                     zero
                 } else {
-                    let n1 = sub(n1);
-                    let rec = rec(n1);
-                    let result = add(n2, rec);
-                    result
+                    let sub = sub(n1);
+                    let rec = rec(sub);
+                    let add = add(n2, rec);
+                    add
                 };
                 return selected;
             }
@@ -635,24 +635,33 @@ mod tests {
                 let edge_rec = node_rec.outputs()[0usize].clone();
                 let edge_add = node_add.outputs()[0usize].clone();
 
-                let node_divide = node_divide3.build(vec![edge_n.clone()], 0usize)?;
-                let node_is_zero = node_is_zero.build(vec![edge_n0], 0usize)?;
-                let node_select = node_select_builder.build(vec![edge_zero, edge_add], 0usize)?;
-                let node_branch = node_branch_0.build(vec![edge_is_zero], 0usize)?;
-                let node_zero = node_zero.build(vec![edge_true_0_0], 1usize)?;
-                let sub = node_sub.build(vec![edge_false_0_0, edge_n1], 1usize)?;
-                let rec = node_rec.build(vec![edge_false_0_1, edge_sub.clone()], 1usize)?;
+                assert_eq!(node_divide3.outputs().len(), 3usize);
+                assert_eq!(node_is_zero.outputs().len(), 1usize);
+                assert_eq!(node_selected.outputs().len(), 1usize);
+                assert_eq!(node_branch_0.outputs().len(), 4usize);
+                assert_eq!(node_zero.outputs().len(), 1usize);
+                assert_eq!(node_sub.outputs().len(), 1usize);
+                assert_eq!(node_rec.outputs().len(), 1usize);
+                assert_eq!(node_add.outputs().len(), 1usize);
+
+                let node_divide3 = node_divide3.build(vec![edge_n.clone()], 0usize)?;
+                let node_is_zero = node_is_zero.build(vec![edge_n0.clone()], 0usize)?;
+                let node_selected = node_selected.build(vec![edge_zero.clone(), edge_add.clone()], 0usize)?;
+                let node_branch_0 = node_branch_0.build(vec![edge_is_zero.clone()], 0usize)?;
+                let node_zero = node_zero.build(vec![edge_true_0_0.clone()], 1usize)?;
+                let node_sub = node_sub.build(vec![edge_false_0_0.clone(), edge_n1.clone()], 1usize)?;
+                let node_rec = node_rec.build(vec![edge_false_0_1.clone(), edge_sub.clone()], 1usize)?;
                 let node_add =
-                    node_add.build(vec![edge_false_0_2, edge_n2.clone(), edge_rec.clone()], 1usize)?;
+                    node_add.build(vec![edge_false_0_2.clone(), edge_n2.clone(), edge_rec.clone()], 1usize)?;
 
                 let builder = WorkflowBuilder::default()
-                    .add_node(node_divide)?
+                    .add_node(node_divide3)?
                     .add_node(node_is_zero)?
                     .add_node(node_selected)?
-                    .add_node(node_branch)?
+                    .add_node(node_branch_0)?
                     .add_node(node_zero)?
-                    .add_node(sub)?
-                    .add_node(rec)?
+                    .add_node(node_sub)?
+                    .add_node(node_rec)?
                     .add_node(node_add)?;
 
                 Ok((wf_id, builder, vec![edge_n], vec![edge_selected]))
@@ -660,14 +669,14 @@ mod tests {
             fn sum(n: i32) -> i32 {
                 let (n0, n1, n2) = divide3(n);
                 let is_zero = is_zero(n0);
-                let selected = if is_zero {
+                let selected: i32 = if is_zero {
                     let zero = zero();
                     zero
                 } else {
-                    let n1 = sub(n1);
-                    let rec = rec(n1);
-                    let result = add(n2, rec);
-                    result
+                    let sub = sub(n1);
+                    let rec = rec(sub);
+                    let add = add(n2, rec);
+                    add
                 };
                 return selected;
             }
