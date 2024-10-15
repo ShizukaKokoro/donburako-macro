@@ -1,6 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::collections::VecDeque;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -68,6 +69,31 @@ fn edge_name(ident: &syn::Ident) -> syn::Ident {
 }
 
 #[derive(Debug, Default)]
+struct ManageQueue(Vec<VecDeque<syn::Ident>>);
+impl ManageQueue {
+    fn push(&mut self, edges: VecDeque<syn::Ident>) {
+        self.0.push(edges);
+    }
+
+    fn pop(&mut self) -> Option<syn::Ident> {
+        if let Some(edges) = self.0.first_mut() {
+            if let Some(edge) = edges.pop_front() {
+                return Some(edge);
+            }
+        }
+        None
+    }
+
+    fn clear(&mut self) {
+        let _ = self.0.pop();
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+#[derive(Debug, Default)]
 struct StmtVisitor {
     pub err: Option<Error>,
     pub node_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, エッジの名前, 管理エッジの数)
@@ -75,7 +101,7 @@ struct StmtVisitor {
     pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
     pub tmp_vars: Vec<syn::Ident>,
     pub branch_cnt: usize,
-    pub tmp_manage_edges: Vec<syn::Ident>,
+    pub tmp_manage_edges: ManageQueue,
     pub tmp_select: Option<usize>,
     pub output_edge: Vec<syn::Ident>,
 }
@@ -102,7 +128,10 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
                     self.edge_idents.push((edge_name(ident), node_idx, i));
                 }
-                let mut edge_vec = self.tmp_manage_edges.clone();
+                let mut edge_vec = Vec::new();
+                if let Some(manage) = self.tmp_manage_edges.pop() {
+                    edge_vec.push(manage);
+                }
                 let manage_cnt = edge_vec.len();
                 for arg in expr_call.args.iter() {
                     if let syn::Expr::Path(expr_path) = arg {
@@ -184,25 +213,37 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 _ => 0,
             } - 1;
 
-            let true_edge = syn::Ident::new(&format!("edge_true_{}", self.branch_cnt), cond.span());
-            let false_edge =
-                syn::Ident::new(&format!("edge_false_{}", self.branch_cnt), cond.span());
-            self.edge_idents.push((true_edge.clone(), node_idx, 0));
-            self.edge_idents.push((false_edge.clone(), node_idx, 1));
+            let true_edges: VecDeque<_> = (0..true_cnt)
+                .map(|i| {
+                    syn::Ident::new(&format!("edge_true_{}_{}", self.branch_cnt, i), cond.span())
+                })
+                .collect();
+            let false_edges: VecDeque<_> = (0..false_cnt)
+                .map(|i| {
+                    syn::Ident::new(
+                        &format!("edge_false_{}_{}", self.branch_cnt, i),
+                        cond.span(),
+                    )
+                })
+                .collect();
+
+            for (i, edge) in true_edges.iter().chain(false_edges.iter()).enumerate() {
+                self.edge_idents.push((edge.clone(), node_idx, i));
+            }
 
             self.builder_paths
                 .push(parse_quote! { branch_builder!(#true_cnt, #false_cnt) });
 
-            self.tmp_manage_edges.push(true_edge);
+            self.tmp_manage_edges.push(true_edges);
             self.visit_block(then_branch);
-            let _ = self.tmp_manage_edges.pop();
-            self.tmp_manage_edges.push(false_edge);
+            self.tmp_manage_edges.clear();
+            self.tmp_manage_edges.push(false_edges);
             if let syn::Expr::If(expr_if_) = expr.as_ref() {
                 self.visit_expr_if(expr_if_);
             } else if let syn::Expr::Block(expr_block) = expr.as_ref() {
                 self.visit_block(&expr_block.block);
             }
-            let _ = self.tmp_manage_edges.pop();
+            self.tmp_manage_edges.clear();
             return;
         }
         self.err = Some(Error::new(
