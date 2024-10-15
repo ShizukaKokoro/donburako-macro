@@ -440,7 +440,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         for (name, arg) in func_args {
             let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
             start_edge_exprs.push(quote! {
-                let #edge_name = Arc::new(donburako::edge::Edge::new::<#arg>());
+                let #edge_name = std::sync::Arc::new(donburako::edge::Edge::new::<#arg>());
             });
             start_edges.push(edge_name);
         }
@@ -629,7 +629,7 @@ mod tests {
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
 
-                let edge_n = Arc::new(donburako::edge::Edge::new::<i32>());
+                let edge_n = std::sync::Arc::new(donburako::edge::Edge::new::<i32>());
                 let edge_n0 = node_divide2.outputs()[0usize].clone();
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
@@ -720,7 +720,7 @@ mod tests {
                 let node_rec = RecBuilder::new();
                 let node_add = AddBuilder::new();
 
-                let edge_n = Arc::new(donburako::edge::Edge::new::<i32>());
+                let edge_n = std::sync::Arc::new(donburako::edge::Edge::new::<i32>());
                 let edge_n0 = node_divide3.outputs()[0usize].clone();
                 let edge_n1 = node_divide3.outputs()[1usize].clone();
                 let edge_n2 = node_divide3.outputs()[2usize].clone();

@@ -21,14 +21,14 @@ pub fn branch_builder_parse(input: ParseStream) -> Result<TokenStream> {
         ));
     }
     let outputs = (0..branch_cnt)
-        .map(|_| quote! {Arc::new(donburako::edge::Edge::new::<()>())})
+        .map(|_| quote! {std::sync::Arc::new(donburako::edge::Edge::new::<()>())})
         .collect::<Vec<_>>();
     let true_output: Vec<TokenStream> = (0..true_cnt).map(|_| parse_quote!( => ())).collect();
     let false_output: Vec<TokenStream> = (0..false_cnt).map(|_| parse_quote!( => ())).collect();
     Ok(quote! {
         {
         struct BranchBuilder {
-            outputs: Vec<Arc<donburako::edge::Edge>>,
+            outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a donburako::node::Node,
                 &'a donburako::operator::Operator,
@@ -70,10 +70,10 @@ pub fn branch_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     false_cnt: #false_cnt,
                 }
             }
-            fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+            fn outputs(&self) -> &Vec<std::sync::Arc<donburako::edge::Edge>> {
                 &self.outputs
             }
-            fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+            fn build(self, inputs: Vec< std::sync::Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
                 if let Some(edge) = inputs.get(manage_cnt) {
                     if !edge.check_type::<bool>() {
                         return Err(donburako::node::NodeError::EdgeTypeMismatch);
@@ -110,7 +110,7 @@ mod tests {
         let expected = quote! {
             {
             struct BranchBuilder {
-                outputs: Vec<Arc<donburako::edge::Edge>>,
+                outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
@@ -127,7 +127,7 @@ mod tests {
             impl donburako::node::NodeBuilder for BranchBuilder {
                 fn new() -> Self {
                     BranchBuilder {
-                        outputs: vec![Arc::new(donburako::edge::Edge::new::<()>()), Arc::new(donburako::edge::Edge::new::<()>()), Arc::new(donburako::edge::Edge::new::<()>())],
+                        outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<()>()), std::sync::Arc::new(donburako::edge::Edge::new::<()>()), std::sync::Arc::new(donburako::edge::Edge::new::<()>())],
                         func: node_func! {
                             take! {
                                 exec_id | self_.inputs() | self_.manage_cnt()
@@ -153,10 +153,10 @@ mod tests {
                         false_cnt: 2usize,
                     }
                 }
-                fn outputs(&self) -> &Vec<Arc<donburako::edge::Edge>> {
+                fn outputs(&self) -> &Vec<std::sync::Arc<donburako::edge::Edge>> {
                     &self.outputs
                 }
-                fn build(self, inputs: Vec< Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                fn build(self, inputs: Vec< std::sync::Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
                     if let Some(edge) = inputs.get(manage_cnt) {
                         if !edge.check_type::<bool>() {
                             return Err(donburako::node::NodeError::EdgeTypeMismatch);
