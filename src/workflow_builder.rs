@@ -294,6 +294,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     syn::Expr::Await(expr_await) => self.visit_expr_await(expr_await),
                     syn::Expr::Call(expr_call) => self.visit_expr_call(expr_call),
                     syn::Expr::If(expr_if) => {
+                        if self.tmp_manage_edges.len() > 0 {
+                            self.err = Some(Error::new(
+                                expr.span(),
+                                "Nested if statement is not supported yet",
+                            ));
+                        }
                         match pat {
                             syn::Pat::Type(syn::PatType { ty, .. }) => {
                                 let ty = get_types_from_type(ty, false).unwrap().pop().unwrap();
