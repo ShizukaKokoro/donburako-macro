@@ -18,7 +18,7 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
         struct SelectBuilder {
             outputs: Vec<Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
-                &'a Node,
+                &'a donburako::node::Node,
                 &'a donburako::operator::Operator,
                 donburako::operator::ExecutorId,
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -51,7 +51,7 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     }
                 }
 
-                Ok(std::sync::Arc::new(Node::new(
+                Ok(std::sync::Arc::new(donburako::node::Node::new(
                     inputs,
                     manage_cnt,
                     self.outputs,
@@ -81,7 +81,7 @@ mod tests {
                 struct SelectBuilder {
                     outputs: Vec<Arc<donburako::edge::Edge>>,
                     func: Box<dyn for<'a> Fn(
-                        &'a Node,
+                        &'a donburako::node::Node,
                         &'a donburako::operator::Operator,
                         donburako::operator::ExecutorId,
                     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -114,7 +114,7 @@ mod tests {
                             }
                         }
 
-                        Ok(std::sync::Arc::new(Node::new(
+                        Ok(std::sync::Arc::new(donburako::node::Node::new(
                             inputs,
                             manage_cnt,
                             self.outputs,

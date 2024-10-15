@@ -139,7 +139,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                     return Err(donburako::node::NodeError::EdgeTypeMismatch);
                 }
 
-                Ok(std::sync::Arc::new(Node::new(
+                Ok(std::sync::Arc::new(donburako::node::Node::new(
                     inputs,
                     manage_cnt,
                     self.outputs,
@@ -153,7 +153,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
     } else {
         parse_quote! {
             fn build(self, inputs: Vec<Arc<donburako::edge::Edge>>, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
-                Ok(std::sync::Arc::new(Node::new(
+                Ok(std::sync::Arc::new(donburako::node::Node::new(
                     inputs,
                     manage_cnt,
                     self.outputs,
@@ -217,7 +217,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         #vis struct #struct_name {
             outputs: Vec<Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
-                &'a Node,
+                &'a donburako::node::Node,
                 &'a donburako::operator::Operator,
                 donburako::operator::ExecutorId,
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -272,7 +272,7 @@ mod tests {
             struct DivideBuilder {
                 outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
-                    &'a Node,
+                    &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -309,7 +309,7 @@ mod tests {
                         return Err(donburako::node::NodeError::EdgeTypeMismatch);
                     }
 
-                    Ok(std::sync::Arc::new(Node::new(
+                    Ok(std::sync::Arc::new(donburako::node::Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -341,7 +341,7 @@ mod tests {
             pub struct IsEvenBuilder {
                 outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
-                    &'a Node,
+                    &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -377,7 +377,7 @@ mod tests {
                         return Err(donburako::node::NodeError::EdgeTypeMismatch);
                     }
 
-                    Ok(std::sync::Arc::new(Node::new(
+                    Ok(std::sync::Arc::new(donburako::node::Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -408,7 +408,7 @@ mod tests {
             struct DoubleBuilder {
                 outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
-                    &'a Node,
+                    &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -443,7 +443,7 @@ mod tests {
                         return Err(donburako::node::NodeError::EdgeTypeMismatch);
                     }
 
-                    Ok(std::sync::Arc::new(Node::new(
+                    Ok(std::sync::Arc::new(donburako::node::Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,
@@ -474,7 +474,7 @@ mod tests {
             struct AddBuilder {
                 outputs: Vec<Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
-                    &'a Node,
+                    &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
@@ -513,7 +513,7 @@ mod tests {
                         return Err(donburako::node::NodeError::EdgeTypeMismatch);
                     }
 
-                    Ok(std::sync::Arc::new(Node::new(
+                    Ok(std::sync::Arc::new(donburako::node::Node::new(
                         inputs,
                         manage_cnt,
                         self.outputs,

@@ -440,7 +440,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         for (name, arg) in func_args {
             let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
             start_edge_exprs.push(quote! {
-                let #edge_name = Arc::new(Edge::new::<#arg>());
+                let #edge_name = Arc::new(donburako::edge::Edge::new::<#arg>());
             });
             start_edges.push(edge_name);
         }
@@ -508,13 +508,13 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             ),
             Box<dyn std::error::Error>,
         > {
-            let wf_id = WorkflowId::new(#func_name_str);
+            let wf_id = donburako::workflow::WorkflowId::new(#func_name_str);
             #(#node_var_let)*
             #(#start_edge_exprs)*
             #(#edge_exprs)*
             #(#node_output_asserts)*
             #(#build_nodes)*
-            let builder = WorkflowBuilder::default()
+            let builder = donburako::workflow::WorkflowBuilder::default()
                 #(#add_nodes)*
                 ;
             Ok((wf_id, builder, vec![#(#start_edges),*], vec![#(#end_edges),*]))
@@ -620,7 +620,7 @@ mod tests {
                 ),
                 Box<dyn std::error::Error>,
             > {
-                let wf_id = WorkflowId::new("func_map");
+                let wf_id = donburako::workflow::WorkflowId::new("func_map");
 
                 let node_divide2 = Divide2Builder::new();
                 let node_is_even = some::IsEvenBuilder::new();
@@ -629,7 +629,7 @@ mod tests {
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
 
-                let edge_n = Arc::new(Edge::new::<i32>());
+                let edge_n = Arc::new(donburako::edge::Edge::new::<i32>());
                 let edge_n0 = node_divide2.outputs()[0usize].clone();
                 let edge_n1 = node_divide2.outputs()[1usize].clone();
                 let edge_even = node_is_even.outputs()[0usize].clone();
@@ -653,7 +653,7 @@ mod tests {
                 let node_double = node_double.build(vec![edge_true_0_0.clone(), edge_n1.clone()], 1usize)?;
                 let node_none = node_none.build(vec![edge_false_0_0.clone()], 1usize)?;
 
-                let builder = WorkflowBuilder::default()
+                let builder = donburako::workflow::WorkflowBuilder::default()
                     .add_node(node_divide2)?
                     .add_node(node_is_even)?
                     .add_node(node_select)?
@@ -709,7 +709,7 @@ mod tests {
                 ),
                 Box<dyn std::error::Error>,
             > {
-                let wf_id = WorkflowId::new("sum");
+                let wf_id = donburako::workflow::WorkflowId::new("sum");
 
                 let node_divide3 = Divide3Builder::new();
                 let node_is_zero = IsZeroBuilder::new();
@@ -720,7 +720,7 @@ mod tests {
                 let node_rec = RecBuilder::new();
                 let node_add = AddBuilder::new();
 
-                let edge_n = Arc::new(Edge::new::<i32>());
+                let edge_n = Arc::new(donburako::edge::Edge::new::<i32>());
                 let edge_n0 = node_divide3.outputs()[0usize].clone();
                 let edge_n1 = node_divide3.outputs()[1usize].clone();
                 let edge_n2 = node_divide3.outputs()[2usize].clone();
@@ -754,7 +754,7 @@ mod tests {
                 let node_add =
                     node_add.build(vec![edge_false_0_2.clone(), edge_n2.clone(), edge_rec.clone()], 1usize)?;
 
-                let builder = WorkflowBuilder::default()
+                let builder = donburako::workflow::WorkflowBuilder::default()
                     .add_node(node_divide3)?
                     .add_node(node_is_zero)?
                     .add_node(node_selected)?
