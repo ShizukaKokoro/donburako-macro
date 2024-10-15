@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -93,17 +93,40 @@ impl ManageQueue {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct StmtVisitor {
     pub err: Option<Error>,
     pub node_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, エッジの名前, 管理エッジの数)
     pub builder_paths: Vec<TokenStream>,
+    pub edge_map: HashSet<syn::Ident>,
     pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
     pub tmp_vars: Vec<syn::Ident>,
     pub branch_cnt: usize,
     pub tmp_manage_edges: ManageQueue,
     pub tmp_select: Option<usize>,
     pub output_edge: Vec<syn::Ident>,
+}
+impl StmtVisitor {
+    fn new(start_edge: Vec<syn::Ident>) -> Result<Self> {
+        let mut edge_map = HashSet::new();
+        for edge in start_edge.iter() {
+            if !edge_map.insert(edge.clone()) {
+                return Err(Error::new(edge.span(), "Variable name is duplicated"));
+            }
+        }
+        Ok(Self {
+            err: None,
+            node_names: Vec::new(),
+            builder_paths: Vec::new(),
+            edge_map,
+            edge_idents: Vec::new(),
+            tmp_vars: Vec::new(),
+            branch_cnt: 0,
+            tmp_manage_edges: ManageQueue::default(),
+            tmp_select: None,
+            output_edge: Vec::new(),
+        })
+    }
 }
 impl<'ast> Visit<'ast> for StmtVisitor {
     fn visit_expr_await(&mut self, expr_await: &'ast syn::ExprAwait) {
@@ -126,7 +149,16 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 let ident = expr_path.path.segments.last().unwrap().ident.clone();
                 let node_idx = self.node_names.len();
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
-                    self.edge_idents.push((edge_name(ident), node_idx, i));
+                    let edge_name_ident = edge_name(ident);
+                    if !self.edge_map.insert(edge_name_ident.clone()) {
+                        self.err = Some(Error::new(
+                            edge_name_ident.span(),
+                            "Variable name is duplicated",
+                        ));
+                        return;
+                    }
+                    self.edge_idents
+                        .push((edge_name_ident.clone(), node_idx, i));
                 }
                 let mut edge_vec = Vec::new();
                 if let Some(manage) = self.tmp_manage_edges.pop() {
@@ -136,6 +168,14 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 for arg in expr_call.args.iter() {
                     if let syn::Expr::Path(expr_path) = arg {
                         if let Some(ident) = expr_path.path.get_ident() {
+                            let edge_name_ident = edge_name(ident);
+                            if !self.edge_map.remove(&edge_name_ident) {
+                                self.err = Some(Error::new(
+                                    edge_name_ident.span(),
+                                    "Variable name is not found. It may be undefined or moved",
+                                ));
+                                return;
+                            }
                             edge_vec.push(edge_name(ident));
                         } else {
                             self.err = Some(Error::new(
@@ -171,7 +211,15 @@ impl<'ast> Visit<'ast> for StmtVisitor {
         self.tmp_vars.clear();
         let node_idx = self.node_names.len();
         self.tmp_select = Some(node_idx);
-        self.edge_idents.push((edge_name(&ident), node_idx, 0));
+        let edge_name_indent = edge_name(&ident);
+        if !self.edge_map.insert(edge_name_indent.clone()) {
+            self.err = Some(Error::new(
+                edge_name_indent.span(),
+                "Variable name is duplicated",
+            ));
+            return;
+        }
+        self.edge_idents.push((edge_name_indent, node_idx, 0));
         self.node_names.push((node_name(&ident), vec![], 0));
         if let syn::ExprIf {
             cond,
@@ -228,6 +276,10 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 .collect();
 
             for (i, edge) in true_edges.iter().chain(false_edges.iter()).enumerate() {
+                if !self.edge_map.insert(edge.clone()) {
+                    self.err = Some(Error::new(ident.span(), "Variable name is duplicated"));
+                    return;
+                }
                 self.edge_idents.push((edge.clone(), node_idx, i));
             }
 
@@ -382,7 +434,20 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     }));
     let func_vis = &func.vis;
 
-    let mut visitor = StmtVisitor::default();
+    let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
+        let mut start_edge_exprs = Vec::new();
+        let mut start_edges = Vec::new();
+        for (name, arg) in func_args {
+            let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
+            start_edge_exprs.push(quote! {
+                let #edge_name = Arc::new(Edge::new::<#arg>());
+            });
+            start_edges.push(edge_name);
+        }
+        (start_edge_exprs, start_edges)
+    };
+
+    let mut visitor = StmtVisitor::new(start_edges.clone()).unwrap();
     visitor.visit_block(&func.block);
     if let Some(err) = visitor.err {
         return Err(err);
@@ -431,18 +496,6 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         assert_eq!(#pre.outputs().len(), #cnt);
     });
 
-    let (start_edge_exprs, start_edges): (Vec<_>, Vec<syn::Ident>) = {
-        let mut start_edge_exprs = Vec::new();
-        let mut start_edges = Vec::new();
-        for (name, arg) in func_args {
-            let edge_name = syn::Ident::new(&format!("edge_{}", name), name.span());
-            start_edge_exprs.push(quote! {
-                let #edge_name = Arc::new(Edge::new::<#arg>());
-            });
-            start_edges.push(edge_name);
-        }
-        (start_edge_exprs, start_edges)
-    };
     let end_edges: Vec<syn::Ident> = visitor.output_edge.iter().map(edge_name).collect();
 
     Ok(quote! {
