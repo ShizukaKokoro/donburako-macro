@@ -24,6 +24,7 @@ fn get_vars_from_pat(pat: &syn::Pat, allow_tuple: bool) -> Result<Vec<syn::Ident
         syn::Pat::Type(syn::PatType { pat, .. }) => {
             vars.extend(get_vars_from_pat(pat, allow_tuple)?);
         }
+        syn::Pat::Wild(_) => {}
         _ => {
             return Err(Error::new(pat.span(), "Invalid pattern"));
         }
