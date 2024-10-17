@@ -7,11 +7,11 @@ use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{parse_quote, Error, Result};
 
-fn get_vars_from_pat(pat: &syn::Pat, allow_tuple: bool) -> Result<Vec<syn::Ident>> {
+fn get_vars_from_pat(pat: &syn::Pat, allow_tuple: bool) -> Result<Vec<Option<syn::Ident>>> {
     let mut vars = Vec::new();
     match pat {
         syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
-            vars.push(ident.clone());
+            vars.push(Some(ident.clone()));
         }
         syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
             if !allow_tuple {
@@ -24,7 +24,9 @@ fn get_vars_from_pat(pat: &syn::Pat, allow_tuple: bool) -> Result<Vec<syn::Ident
         syn::Pat::Type(syn::PatType { pat, .. }) => {
             vars.extend(get_vars_from_pat(pat, allow_tuple)?);
         }
-        syn::Pat::Wild(_) => {}
+        syn::Pat::Wild(_) => {
+            vars.push(None);
+        }
         _ => {
             return Err(Error::new(pat.span(), "Invalid pattern"));
         }
@@ -100,8 +102,8 @@ struct StmtVisitor {
     pub node_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, エッジの名前, 管理エッジの数)
     pub builder_paths: Vec<TokenStream>,
     pub edge_map: HashSet<syn::Ident>,
-    pub edge_idents: Vec<(syn::Ident, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
-    pub tmp_vars: Vec<syn::Ident>,
+    pub edge_idents: Vec<(Option<syn::Ident>, usize, usize)>, // (エッジの名前, ノードのインデックス, その番号)
+    pub tmp_vars: Vec<Option<syn::Ident>>,
     pub branch_cnt: usize,
     pub tmp_manage_edges: ManageQueue,
     pub tmp_select: Option<usize>,
@@ -150,16 +152,20 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                 let ident = expr_path.path.segments.last().unwrap().ident.clone();
                 let node_idx = self.node_names.len();
                 for (i, ident) in self.tmp_vars.iter().enumerate() {
-                    let edge_name_ident = edge_name(ident);
-                    if !self.edge_map.insert(edge_name_ident.clone()) {
-                        self.err = Some(Error::new(
-                            edge_name_ident.span(),
-                            "Variable name is duplicated",
-                        ));
-                        return;
+                    if let Some(ident) = ident {
+                        let edge_name_ident = edge_name(ident);
+                        if !self.edge_map.insert(edge_name_ident.clone()) {
+                            self.err = Some(Error::new(
+                                edge_name_ident.span(),
+                                "Variable name is duplicated",
+                            ));
+                            return;
+                        }
+                        self.edge_idents
+                            .push((Some(edge_name_ident.clone()), node_idx, i));
+                    } else {
+                        self.edge_idents.push((None, node_idx, i));
                     }
-                    self.edge_idents
-                        .push((edge_name_ident.clone(), node_idx, i));
                 }
                 let mut edge_vec = Vec::new();
                 if let Some(manage) = self.tmp_manage_edges.pop() {
@@ -209,6 +215,14 @@ impl<'ast> Visit<'ast> for StmtVisitor {
 
     fn visit_expr_if(&mut self, expr_if: &'ast syn::ExprIf) {
         let ident = self.tmp_vars.pop().unwrap();
+        if ident.is_none() {
+            self.err = Some(Error::new(
+                expr_if.span(),
+                "If expression must have a local variable",
+            ));
+            return;
+        }
+        let ident = ident.unwrap();
         self.tmp_vars.clear();
         let node_idx = self.node_names.len();
         self.tmp_select = Some(node_idx);
@@ -220,7 +234,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             ));
             return;
         }
-        self.edge_idents.push((edge_name_indent, node_idx, 0));
+        self.edge_idents.push((Some(edge_name_indent), node_idx, 0));
         self.node_names.push((node_name(&ident), vec![], 0));
         if let syn::ExprIf {
             cond,
@@ -281,7 +295,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     self.err = Some(Error::new(ident.span(), "Variable name is duplicated"));
                     return;
                 }
-                self.edge_idents.push((edge.clone(), node_idx, i));
+                self.edge_idents.push((Some(edge.clone()), node_idx, i));
             }
 
             self.builder_paths
@@ -314,10 +328,6 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             return;
         }
         if expr_return.expr.is_none() {
-            self.err = Some(Error::new(
-                expr_return.span(),
-                "Return expression must have an expression",
-            ));
             return;
         }
         let expr_return = expr_return.expr.as_ref().unwrap().as_ref();
@@ -488,9 +498,15 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             cnt = 0;
             pre = Some(node_name.clone());
         }
-        edge_exprs.push(quote! {
-            let #edge_name = #node_name.outputs()[#edge_idx].clone();
-        });
+        if let Some(edge_name) = edge_name {
+            edge_exprs.push(quote! {
+                let #edge_name = #node_name.outputs()[#edge_idx].clone();
+            });
+        } else {
+            edge_exprs.push(quote! {
+                let _ = #node_name.outputs()[#edge_idx].clone();
+            });
+        }
         cnt += 1;
     }
     node_output_asserts.push(quote! {
@@ -536,7 +552,7 @@ mod tests {
             n
         };
         let result = get_vars_from_pat(&input, true).unwrap();
-        let expected = vec![syn::Ident::new("n", input.span())];
+        let expected = vec![Some(syn::Ident::new("n", input.span()))];
         assert_eq!(result, expected);
     }
 
@@ -547,8 +563,8 @@ mod tests {
         };
         let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![
-            syn::Ident::new("n0", input.span()),
-            syn::Ident::new("n1", input.span()),
+            Some(syn::Ident::new("n0", input.span())),
+            Some(syn::Ident::new("n1", input.span())),
         ];
         assert_eq!(result, expected);
     }
@@ -557,7 +573,7 @@ mod tests {
     fn test_get_vars_from_pat_type() {
         let input: syn::Pat = syn::Pat::Type(parse_quote!(n: i32));
         let result = get_vars_from_pat(&input, true).unwrap();
-        let expected = vec![syn::Ident::new("n", input.span())];
+        let expected = vec![Some(syn::Ident::new("n", input.span()))];
         assert_eq!(result, expected);
     }
 
@@ -568,8 +584,8 @@ mod tests {
         });
         let result = get_vars_from_pat(&input, true).unwrap();
         let expected = vec![
-            syn::Ident::new("n0", input.span()),
-            syn::Ident::new("n1", input.span()),
+            Some(syn::Ident::new("n0", input.span())),
+            Some(syn::Ident::new("n1", input.span())),
         ];
         assert_eq!(result, expected);
     }
@@ -791,6 +807,7 @@ mod tests {
         let input = quote! {
             fn app_test(s: String) {
                 let _ = print_string(s);
+                return;
             }
         };
         let result = workflow_builder_impl(quote! {}, input).to_string();
@@ -822,6 +839,7 @@ mod tests {
             }
             fn app_test(s: String) {
                 let _ = print_string(s);
+                return;
             }
         }
         .to_string();
