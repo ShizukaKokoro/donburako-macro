@@ -486,6 +486,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let mut node_output_asserts: Vec<TokenStream> = Vec::new();
     let mut cnt = 0usize;
     let mut pre = None;
+    let mut ignore_edges = Vec::new();
     for (edge_name, node_idx, edge_idx) in visitor.edge_idents.iter() {
         let node_name = &visitor.node_names[*node_idx].0;
         if pre.is_none() {
@@ -503,8 +504,15 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 let #edge_name = #node_name.outputs()[#edge_idx].clone();
             });
         } else {
+            let name: syn::Ident = syn::Ident::new(
+                &format!("__ignore_tmp_{}_{}", node_name, edge_idx),
+                node_name.span(),
+            );
+            ignore_edges.push(quote! {
+                .ignore_edge(#name)
+            });
             edge_exprs.push(quote! {
-                let _ = #node_name.outputs()[#edge_idx].clone();
+                let #name = #node_name.outputs()[#edge_idx].clone();
             });
         }
         cnt += 1;
@@ -533,6 +541,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             #(#build_nodes)*
             let builder = donburako::workflow::WorkflowBuilder::default()
                 #(#add_nodes)*
+                #(#ignore_edges)*
                 ;
             Ok((wf_id, builder, vec![#(#start_edges),*], vec![#(#end_edges),*]))
         }
@@ -826,14 +835,16 @@ mod tests {
                 let node_print_string = PrintStringBuilder::new();
 
                 let edge_s = std::sync::Arc::new(donburako::edge::Edge::new::<String>());
-                let _ = node_print_string.outputs()[0usize].clone();
+                let __ignore_tmp_node_print_string_0 = node_print_string.outputs()[0usize].clone();
 
                 assert_eq!(node_print_string.outputs().len(), 1usize);
 
                 let node_print_string = node_print_string.build(vec![edge_s.clone()], 0usize)?;
 
                 let builder = donburako::workflow::WorkflowBuilder::default()
-                    .add_node(node_print_string)?;
+                    .add_node(node_print_string)?
+                    .ignore_edge(__ignore_tmp_node_print_string_0)
+                    ;
 
                 Ok((wf_id, builder, vec![edge_s], vec![]))
             }
