@@ -93,12 +93,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 syn::Type::Tuple(tuple) => {
                     for elem in tuple.elems.iter() {
                         if let syn::Type::Path(path) = elem {
-                            if let Some(ident) = path.path.get_ident() {
-                                rtn_types.push(syn::TypePath {
-                                    qself: None,
-                                    path: syn::Path::from(ident.clone()),
-                                });
-                            }
+                            rtn_types.push(path.clone());
                         }
                     }
                 }
@@ -529,6 +524,73 @@ mod tests {
             }
         }
         .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_node_builder_impl5() {
+        let input = quote! {
+            fn divide_strio(port: Arc<i32>) -> (Arc<i32>, Arc<i32>) {
+                let port_clone = port.clone();
+                return (port, port_clone);
+            }
+        };
+        let result = node_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            struct DivideStrioBuilder {
+                outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
+                func: Box<dyn for<'a> Fn(
+                    &'a donburako::node::Node,
+                    &'a donburako::operator::Operator,
+                    donburako::operator::ExecutorId,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                + Send
+                + Sync>,
+                is_blocking: bool,
+                choice: donburako::node::Choice,
+                name: &'static str,
+            }
+            impl donburako::node::NodeBuilder for DivideStrioBuilder {
+                fn new() -> Self {
+                    DivideStrioBuilder {
+                        outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<Arc<i32> >()), std::sync::Arc::new(donburako::edge::Edge::new::<Arc<i32> >())],
+                        func: node_func! {
+                            input!(port: Arc<i32>);
+                            let port_clone = port.clone();
+                            output!(port, port_clone);
+                        },
+                        is_blocking: true,
+                        choice: donburako::node::Choice::All,
+                        name: "divide_strio",
+                    }
+                }
+                fn outputs(&self) -> &Vec<std::sync::Arc<donburako::edge::Edge>> {
+                    &self.outputs
+                }
+                fn build(self, inputs: Vec< std::sync::Arc<donburako::edge::Edge> >, manage_cnt: usize) -> Result<std::sync::Arc<donburako::node::Node>, donburako::node::NodeError>{
+                    if let Some(edge) = inputs.get(manage_cnt + 0usize) {
+                        if !edge.check_type::<Arc<i32> >() {
+                            return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                        }
+                    } else {
+                        return Err(donburako::node::NodeError::EdgeTypeMismatch);
+                    }
+
+                    Ok(std::sync::Arc::new(donburako::node::Node::new(
+                        inputs,
+                        manage_cnt,
+                        self.outputs,
+                        self.func,
+                        self.is_blocking,
+                        self.name,
+                        self.choice,
+                    )))
+                }
+            }
+            fn divide_strio(_: Arc<i32>) -> (Arc<i32>, Arc<i32>) {
+                return (fake::Faker.fake(), fake::Faker.fake());
+            }
+        }.to_string();
         assert_eq!(result, expected);
     }
 }
