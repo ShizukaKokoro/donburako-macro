@@ -785,4 +785,46 @@ mod tests {
         .to_string();
         assert_eq!(result, expected);
     }
+
+    #[test]
+    fn test_workflow_builder_impl_wild() {
+        let input = quote! {
+            fn app_test(s: String) {
+                let _ = print_string(s);
+            }
+        };
+        let result = workflow_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            fn app_test_workflow() -> Result<
+                (
+                    donburako::workflow::WorkflowId,
+                    donburako::workflow::WorkflowBuilder,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                ),
+                Box<dyn std::error::Error>,
+            > {
+                let wf_id = donburako::workflow::WorkflowId::new("app_test");
+
+                let node_print_string = PrintStringBuilder::new();
+
+                let edge_s = std::sync::Arc::new(donburako::edge::Edge::new::<String>());
+                let _ = node_print_string.outputs()[0usize].clone();
+
+                assert_eq!(node_print_string.outputs().len(), 1usize);
+
+                let node_print_string = node_print_string.build(vec![edge_s.clone()], 0usize)?;
+
+                let builder = donburako::workflow::WorkflowBuilder::default()
+                    .add_node(node_print_string)?;
+
+                Ok((wf_id, builder, vec![edge_s], vec![]))
+            }
+            fn app_test(s: String) {
+                let _ = print_string(s);
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
 }
