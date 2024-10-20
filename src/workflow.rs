@@ -143,8 +143,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
     }
     for_block.body.stmts = vec![
         parse_quote!(let id = donburako::operator::ExecutorId::default();),
-        parse_quote!(let (tx, rx) = tokio::sync::oneshot::channel();),
-        parse_quote!(op.start_workflow(id, wf_id, Some(tx)).await;),
+        parse_quote!(let rx = op.start_workflow(id, wf_id).await;),
         parse_quote!(exec_ids.push((id, rx));),
         parse_quote!(store! {id | start => #(#args)=>*}),
     ];
@@ -194,8 +193,7 @@ mod tests {
 
             for _ in [()] {
                 let id = donburako::operator::ExecutorId::default();
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                op.start_workflow(id, wf_id, Some(tx)).await;
+                let rx = op.start_workflow(id, wf_id).await;
                 exec_ids.push((id, rx));
                 store!{
                     id | start
@@ -242,8 +240,7 @@ mod tests {
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                op.start_workflow(id, wf_id, Some(tx)).await;
+                let rx = op.start_workflow(id, wf_id).await;
                 exec_ids.push((id, rx));
                 store!{
                     id | start
@@ -290,8 +287,7 @@ mod tests {
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                op.start_workflow(id, wf_id, Some(tx)).await;
+                let rx = op.start_workflow(id, wf_id).await;
                 exec_ids.push((id, rx));
                 store!{
                     id | start
@@ -340,8 +336,7 @@ mod tests {
             let (start, end) = op.get_start_end_edges(&wf_id);
             for (item1, item2) in list {
                 let id = donburako::operator::ExecutorId::default();
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                op.start_workflow(id, wf_id, Some(tx)).await;
+                let rx = op.start_workflow(id, wf_id).await;
                 exec_ids.push((id, rx));
                 store!{
                     id | start
@@ -394,8 +389,7 @@ mod tests {
             let (start, end) = op.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                op.start_workflow(id, wf_id, Some(tx)).await;
+                let rx = op.start_workflow(id, wf_id).await;
                 exec_ids.push((id, rx));
                 store!{
                     id | start
