@@ -6,6 +6,7 @@ pub fn node_func_impl(tokens: TokenStream) -> TokenStream {
         Box::new(|self_, op, exec_id| {
             Box::pin(async move {
                 #tokens
+                Ok(())
             })
         })
     }
@@ -35,6 +36,7 @@ mod tests {
                     println!("n: {:?}(is_zero)", n);
                     let result = n == 0;
                     output!(result);
+                    Ok(())
                 })
             })
         };

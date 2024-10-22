@@ -90,8 +90,7 @@ pub fn store_parse(input: ParseStream) -> Result<TokenStream> {
         let mut output_cons = std::collections::VecDeque::new();
         #(#stmts)*
         op.add_container(#to, #id, output_cons)
-            .await
-            .unwrap();
+            .await?;
     })
 }
 
@@ -161,8 +160,7 @@ mod tests {
             con_clone.store("1 -> 3");
             output_cons.push_back(con_clone);
             op.add_container(self_.outputs(), exec_id, output_cons)
-                .await
-                .unwrap();
+                .await?;
         }
         .to_string();
         assert_eq!(result, expected,);
@@ -193,8 +191,7 @@ mod tests {
             con_clone.store("0 -> 3");
             output_cons.push_back(con_clone);
             op.add_container(end, id, output_cons)
-                .await
-                .unwrap();
+                .await?;
         }
         .to_string();
         assert_eq!(result, expected,);

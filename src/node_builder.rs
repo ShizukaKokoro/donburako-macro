@@ -215,7 +215,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 &'a donburako::node::Node,
                 &'a donburako::operator::Operator,
                 donburako::operator::ExecutorId,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
             + Send
             + Sync>,
             is_blocking: bool,
@@ -270,7 +270,7 @@ mod tests {
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
-                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
                 + Sync>,
                 is_blocking: bool,
@@ -339,7 +339,7 @@ mod tests {
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
-                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
                 + Sync>,
                 is_blocking: bool,
@@ -406,7 +406,7 @@ mod tests {
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
-                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
                 + Sync>,
                 is_blocking: bool,
@@ -472,7 +472,7 @@ mod tests {
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
-                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
                 + Sync>,
                 is_blocking: bool,
@@ -543,7 +543,7 @@ mod tests {
                     &'a donburako::node::Node,
                     &'a donburako::operator::Operator,
                     donburako::operator::ExecutorId,
-                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
                 + Sync>,
                 is_blocking: bool,
