@@ -46,7 +46,7 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
 
     if let Some(manage_cnt) = manage_cnt {
         Ok(quote! {
-            let mut cons = op.get_container(#from, #id).await;
+            let mut cons = op.get_container(#from, #id).await?;
             let mut con = donburako::container::Container::default();
             for _ in 0..#manage_cnt {
                 con = cons.pop_front().unwrap();
@@ -56,7 +56,7 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
         })
     } else {
         Ok(quote! {
-            let mut cons = op.get_container(#from, #id).await;
+            let mut cons = op.get_container(#from, #id).await?;
             let mut con = donburako::container::Container::default();
             #(#stmts)*
         })

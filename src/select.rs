@@ -33,7 +33,7 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 SelectBuilder {
                     outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<#ty>())],
                     func: node_func! {
-                        let cons = op.get_container(self_.inputs(), exec_id).await;
+                        let cons = op.get_container(self_.inputs(), exec_id).await?;
                         op.add_container(self_.outputs(), exec_id, cons).await?;
                     },
                     is_blocking: false,
