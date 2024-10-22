@@ -194,12 +194,12 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         if func_rtn_types.len() == 1 {
             fake_func.block = Box::new(syn::Block {
                 brace_token: func.block.brace_token,
-                stmts: vec![parse_quote!(return fake::Faker.fake();)],
+                stmts: vec![parse_quote!(return donburako::Faker.fake();)],
             })
         } else {
             let mut fakes: Vec<syn::Expr> = Vec::with_capacity(func_rtn_types.len());
             for _ in 0..func_rtn_types.len() {
-                fakes.push(parse_quote!(fake::Faker.fake()));
+                fakes.push(parse_quote!(donburako::Faker.fake()));
             }
             fake_func.block = Box::new(syn::Block {
                 brace_token: func.block.brace_token,
