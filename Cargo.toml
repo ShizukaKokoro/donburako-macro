@@ -1,8 +1,8 @@
 [package]
 name = "donburako-macro"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
+edition = "2021"
+authors = ["ShizukaKokoro"]
 
 [lib]
 proc-macro = true
