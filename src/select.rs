@@ -19,7 +19,7 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
             outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a donburako::node::Node,
-                &'a donburako::operator::Operator,
+                std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                 donburako::operator::ExecutorId,
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
             + Send
@@ -33,8 +33,9 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
                 SelectBuilder {
                     outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<#ty>())],
                     func: node_func! {
-                        let cons = op.get_container(self_.inputs(), exec_id).await?;
-                        op.add_container(self_.outputs(), exec_id, cons).await?;
+                        let op_lock = op.lock().await;
+                        let cons = op_lock.get_container(self_.inputs(), exec_id).await?;
+                        op_lock.add_container(self_.outputs(), exec_id, cons).await?;
                     },
                     is_blocking: false,
                     choice: donburako::node::Choice::Any,
@@ -82,7 +83,7 @@ mod tests {
                     outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                     func: Box<dyn for<'a> Fn(
                         &'a donburako::node::Node,
-                        &'a donburako::operator::Operator,
+                        std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                         donburako::operator::ExecutorId,
                     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                     + Send
@@ -96,8 +97,9 @@ mod tests {
                         SelectBuilder {
                             outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<Option <i32> >())],
                             func: node_func! {
-                                let cons = op.get_container(self_.inputs(), exec_id).await;
-                                op.add_container(self_.outputs(), exec_id, cons).await?;
+                                let op_lock = op.lock().await;
+                                let cons = op_lock.get_container(self_.inputs(), exec_id).await?;
+                                op_lock.add_container(self_.outputs(), exec_id, cons).await?;
                             },
                             is_blocking: false,
                             choice: donburako::node::Choice::Any,

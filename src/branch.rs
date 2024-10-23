@@ -31,7 +31,7 @@ pub fn branch_builder_parse(input: ParseStream) -> Result<TokenStream> {
             outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a donburako::node::Node,
-                &'a donburako::operator::Operator,
+                std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                 donburako::operator::ExecutorId,
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
             + Send
@@ -113,7 +113,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send

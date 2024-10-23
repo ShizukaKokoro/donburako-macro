@@ -213,7 +213,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
             func: Box<dyn for<'a> Fn(
                 &'a donburako::node::Node,
-                &'a donburako::operator::Operator,
+                std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                 donburako::operator::ExecutorId,
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
             + Send
@@ -268,7 +268,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
@@ -316,7 +316,7 @@ mod tests {
                 }
             }
             async fn divide(_: i32) -> (i32, i32) {
-                return (fake::Faker.fake(), fake::Faker.fake());
+                return (donburako::Faker.fake(), donburako::Faker.fake());
             }
         }
         .to_string();
@@ -337,7 +337,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
@@ -384,7 +384,7 @@ mod tests {
                 }
             }
             pub fn is_even(_: i32) -> bool {
-                return fake::Faker.fake();
+                return donburako::Faker.fake();
             }
         }
         .to_string();
@@ -404,7 +404,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
@@ -450,7 +450,7 @@ mod tests {
                 }
             }
             fn double(_: i32) -> Option<i32> {
-                return fake::Faker.fake();
+                return donburako::Faker.fake();
             }
         }
         .to_string();
@@ -470,7 +470,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
@@ -520,7 +520,7 @@ mod tests {
                 }
             }
             fn add(_: i32, _: i32) -> i32 {
-                return fake::Faker.fake();
+                return donburako::Faker.fake();
             }
         }
         .to_string();
@@ -541,7 +541,7 @@ mod tests {
                 outputs: Vec<std::sync::Arc<donburako::edge::Edge>>,
                 func: Box<dyn for<'a> Fn(
                     &'a donburako::node::Node,
-                    &'a donburako::operator::Operator,
+                    std::sync::Arc<tokio::sync::Mutex<donburako::operator::Operator>>,
                     donburako::operator::ExecutorId,
                 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), donburako::node::NodeError>> + Send + 'a>>
                 + Send
@@ -588,7 +588,7 @@ mod tests {
                 }
             }
             fn divide_strio(_: Arc<i32>) -> (Arc<i32>, Arc<i32>) {
-                return (fake::Faker.fake(), fake::Faker.fake());
+                return (donburako::Faker.fake(), donburako::Faker.fake());
             }
         }.to_string();
         assert_eq!(result, expected);

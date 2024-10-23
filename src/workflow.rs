@@ -143,25 +143,25 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
     }
     for_block.body.stmts = vec![
         parse_quote!(let id = donburako::operator::ExecutorId::default();),
-        parse_quote!(let wf_rx = op.start_workflow(id, wf_id).await;),
+        parse_quote!(let wf_rx = op.lock().await.start_workflow(id, wf_id).await;),
         parse_quote!(exec_ids.push((id, wf_rx));),
-        parse_quote!(store! {id | start => #(#args)=>*}),
+        parse_quote!(store! {id | &start => #(#args)=>*}),
     ];
     Ok(quote! {
         let wf_id = donburako::workflow::WorkflowId::new(#wf_name);
         #init_expr;
         let mut exec_ids = Vec::new();
-        let (start, end) = op.get_start_end_edges(&wf_id);
+        let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
         #for_block
         let mut flag = false;
         for (id, wf_rx) in exec_ids {
             if flag {
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 continue;
             }
             wf_rx.await.unwrap();
-            take!{id | end => #(#rtns)=>*}
-            op.finish_workflow_by_execute_id(id).await;
+            take!{id | &end => #(#rtns)=>*}
+            op.lock().await.finish_workflow_by_execute_id(id).await;
             #(#tl_stmt)*
         }
     })
@@ -189,14 +189,14 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("sum");
             let mut result = None;
             let mut exec_ids = Vec::new();
-            let (start, end) = op.get_start_end_edges(&wf_id);
+            let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
 
             for _ in [()] {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.start_workflow(id, wf_id).await;
+                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
                 exec_ids.push((id, wf_rx));
                 store!{
-                    id | start
+                    id | &start
                         => n
                 }
             }
@@ -204,15 +204,15 @@ mod tests {
             let mut flag = false;
             for (id, wf_rx) in exec_ids {
                 if flag {
-                    op.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
                 wf_rx.await.unwrap();
                 take!{
-                    id | end
+                    id | &end
                         => rec: i32
                 }
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 result = Some(rec);
                 if result.is_some() {
                     flag = true;
@@ -237,13 +237,13 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
-            let (start, end) = op.get_start_end_edges(&wf_id);
+            let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.start_workflow(id, wf_id).await;
+                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
                 exec_ids.push((id, wf_rx));
                 store!{
-                    id | start
+                    id | &start
                         => item
                 }
             }
@@ -251,16 +251,16 @@ mod tests {
             let mut flag = false;
             for (id, wf_rx) in exec_ids {
                 if flag {
-                    op.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
                 wf_rx.await.unwrap();
                 take!{
-                    id | end
+                    id | &end
                         => res: i32
                         => f: bool
                 }
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 result.push(res);
             }
         }
@@ -284,13 +284,13 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
-            let (start, end) = op.get_start_end_edges(&wf_id);
+            let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.start_workflow(id, wf_id).await;
+                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
                 exec_ids.push((id, wf_rx));
                 store!{
-                    id | start
+                    id | &start
                         => item
                 }
             }
@@ -298,15 +298,15 @@ mod tests {
             let mut flag = false;
             for (id, wf_rx) in exec_ids {
                 if flag {
-                    op.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
                 wf_rx.await.unwrap();
                 take!{
-                    id | end
+                    id | &end
                         => res: Option<i32>
                 }
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 if let Some(res) = res {
                     result.push(res);
                 }
@@ -333,13 +333,13 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = Vec::new();
             let mut exec_ids = Vec::new();
-            let (start, end) = op.get_start_end_edges(&wf_id);
+            let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for (item1, item2) in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.start_workflow(id, wf_id).await;
+                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
                 exec_ids.push((id, wf_rx));
                 store!{
-                    id | start
+                    id | &start
                         => item1
                         => item2
                 }
@@ -348,15 +348,15 @@ mod tests {
             let mut flag = false;
             for (id, wf_rx) in exec_ids {
                 if flag {
-                    op.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
                 wf_rx.await.unwrap();
                 take!{
-                    id | end
+                    id | &end
                         => res: i32
                 }
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 result.push(res);
                 if result.len() == 3 {
                     flag = true;
@@ -386,13 +386,13 @@ mod tests {
             let wf_id = donburako::workflow::WorkflowId::new("func_map");
             let mut result = 0;
             let mut exec_ids = Vec::new();
-            let (start, end) = op.get_start_end_edges(&wf_id);
+            let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.start_workflow(id, wf_id).await;
+                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
                 exec_ids.push((id, wf_rx));
                 store!{
-                    id | start
+                    id | &start
                         => item
                 }
             }
@@ -400,15 +400,15 @@ mod tests {
             let mut flag = false;
             for (id, wf_rx) in exec_ids {
                 if flag {
-                    op.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
                 wf_rx.await.unwrap();
                 take!{
-                    id | end
+                    id | &end
                         => res: Option<i32>
                 }
-                op.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id).await;
                 if let Some(res) = res {
                     result += res;
                 }

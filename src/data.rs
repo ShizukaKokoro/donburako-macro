@@ -46,7 +46,7 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
 
     if let Some(manage_cnt) = manage_cnt {
         Ok(quote! {
-            let mut cons = op.get_container(#from, #id).await?;
+            let mut cons = op.lock().await.get_container(#from, #id).await?;
             let mut con = donburako::container::Container::default();
             for _ in 0..#manage_cnt {
                 con = cons.pop_front().unwrap();
@@ -56,7 +56,7 @@ pub fn take_parse(input: ParseStream) -> Result<TokenStream> {
         })
     } else {
         Ok(quote! {
-            let mut cons = op.get_container(#from, #id).await?;
+            let mut cons = op.lock().await.get_container(#from, #id).await?;
             let mut con = donburako::container::Container::default();
             #(#stmts)*
         })
@@ -89,7 +89,7 @@ pub fn store_parse(input: ParseStream) -> Result<TokenStream> {
     Ok(quote! {
         let mut output_cons = std::collections::VecDeque::new();
         #(#stmts)*
-        op.add_container(#to, #id, output_cons)
+        op.lock().await.add_container(#to, #id, output_cons)
             .await?;
     })
 }
@@ -107,7 +107,7 @@ mod tests {
         };
         let result = take_impl(input).to_string();
         let expected = quote! {
-            let mut cons = op.get_container(self_.inputs(), exec_id).await;
+            let mut cons = op.lock().await.get_container(self_.inputs(), exec_id).await;
             let mut con = donburako::container::Container::default();
             for _ in 0..self_.manage_cnt(){
                 con = cons.pop_front().unwrap();
@@ -130,7 +130,7 @@ mod tests {
         };
         let result = take_impl(input).to_string();
         let expected = quote! {
-            let mut cons = op.get_container(start, id).await;
+            let mut cons = op.lock().await.get_container(start, id).await;
             let mut con = donburako::container::Container::default();
             for _ in 0..0{
                 con = cons.pop_front().unwrap();
@@ -159,7 +159,7 @@ mod tests {
             let mut con_clone = con.clone_container().unwrap();
             con_clone.store("1 -> 3");
             output_cons.push_back(con_clone);
-            op.add_container(self_.outputs(), exec_id, output_cons)
+            op.lock().await.add_container(self_.outputs(), exec_id, output_cons)
                 .await?;
         }
         .to_string();
@@ -190,7 +190,7 @@ mod tests {
             let mut con_clone = con.clone_container().unwrap();
             con_clone.store("0 -> 3");
             output_cons.push_back(con_clone);
-            op.add_container(end, id, output_cons)
+            op.lock().await.add_container(end, id, output_cons)
                 .await?;
         }
         .to_string();
