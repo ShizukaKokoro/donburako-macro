@@ -8,11 +8,11 @@ authors = ["ShizukaKokoro"]
 proc-macro = true
 
 [dependencies]
-proc-macro2.workspace = true
-syn.workspace = true
-quote.workspace = true
+proc-macro2 = "1"
+syn = { version = "2", features = ["full", "extra-traits", "visit"] }
+quote = "1"
 
-convert_case.workspace = true
+convert_case = "0"
 
 [dev-dependencies]
-pretty_assertions.workspace = true
+pretty_assertions = "1"
