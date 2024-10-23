@@ -107,7 +107,7 @@ mod tests {
         };
         let result = take_impl(input).to_string();
         let expected = quote! {
-            let mut cons = op.lock().await.get_container(self_.inputs(), exec_id).await;
+            let mut cons = op.lock().await.get_container(self_.inputs(), exec_id).await?;
             let mut con = donburako::container::Container::default();
             for _ in 0..self_.manage_cnt(){
                 con = cons.pop_front().unwrap();
@@ -130,7 +130,7 @@ mod tests {
         };
         let result = take_impl(input).to_string();
         let expected = quote! {
-            let mut cons = op.lock().await.get_container(start, id).await;
+            let mut cons = op.lock().await.get_container(start, id).await?;
             let mut con = donburako::container::Container::default();
             for _ in 0..0{
                 con = cons.pop_front().unwrap();
