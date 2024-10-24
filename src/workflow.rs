@@ -19,7 +19,17 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         match let_stmt {
             syn::Stmt::Local(local) => {
                 let (wf_name, args) = if let Some(local_init) = &local.init {
-                    let wf_name = match local_init.expr.as_ref() {
+                    let local_init = match local_init.expr.as_ref() {
+                        syn::Expr::Await(syn::ExprAwait { base, .. }) => base.as_ref(),
+                        _ => {
+                            return Err(Error::new(
+                                local_init.expr.span(),
+                                "expected await expression",
+                            ))
+                        }
+                    };
+                    println!("{:?}", local_init);
+                    let wf_name = match local_init {
                         syn::Expr::Call(call) => match call.func.as_ref() {
                             syn::Expr::Path(path) => {
                                 let wf_name = path.path.segments.first().unwrap().ident.clone();
@@ -34,12 +44,12 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                         },
                         _ => {
                             return Err(Error::new(
-                                local_init.expr.span(),
+                                local_init.span(),
                                 "initialization with function call is required",
                             ))
                         }
                     };
-                    let args = match local_init.expr.as_ref() {
+                    let args = match local_init {
                         syn::Expr::Call(call) => {
                             let args = call.args.clone();
                             let mut arg_vec = Vec::new();
@@ -177,7 +187,7 @@ mod tests {
         let input = quote! {
             let mut result = None;
             for _ in [()] {
-                let rec: i32 = sum(n);
+                let rec: i32 = sum(n).await;
                 result = Some(rec);
                 if result.is_some() {
                     break;
@@ -228,7 +238,7 @@ mod tests {
         let input = quote! {
             let mut result = Vec::new();
             for item in list {
-                let (res, f): (i32, bool) = func_map(item);
+                let (res, f): (i32, bool) = func_map(item).await;
                 result.push(res);
             }
         };
@@ -273,7 +283,7 @@ mod tests {
         let input = quote! {
             let mut result = Vec::new();
             for item in list {
-                let res: Option<i32> = func_map(item);
+                let res: Option<i32> = func_map(item).await;
                 if let Some(res) = res {
                     result.push(res);
                 }
@@ -321,7 +331,7 @@ mod tests {
         let input = quote! {
             let mut result = Vec::new();
             for (item1, item2) in list {
-                let res: i32 = func_map(item1, item2);
+                let res: i32 = func_map(item1, item2).await;
                 result.push(res);
                 if result.len() == 3 {
                     break;
@@ -372,7 +382,7 @@ mod tests {
         let input = quote! {
             let mut result = 0;
             for item in list {
-                let res: Option<i32> = func_map(item);
+                let res: Option<i32> = func_map(item).await;
                 if let Some(res) = res {
                     result += res;
                 }

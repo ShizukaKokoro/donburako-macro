@@ -56,6 +56,12 @@ impl<'ast> Visit<'ast> for AwaitFinder {
         }
         visit_expr(self, expr);
     }
+
+    fn visit_macro(&mut self, _macro: &'ast syn::Macro) {
+        if _macro.path.is_ident("workflow") {
+            self.found = true;
+        }
+    }
 }
 
 pub fn node_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream {
