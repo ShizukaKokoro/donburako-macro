@@ -28,7 +28,6 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
                             ))
                         }
                     };
-                    println!("{:?}", local_init);
                     let wf_name = match local_init {
                         syn::Expr::Call(call) => match call.func.as_ref() {
                             syn::Expr::Path(path) => {
