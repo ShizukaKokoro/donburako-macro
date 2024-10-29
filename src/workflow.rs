@@ -152,7 +152,8 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
     }
     for_block.body.stmts = vec![
         parse_quote!(let id = donburako::operator::ExecutorId::default();),
-        parse_quote!(let wf_rx = op.lock().await.start_workflow(id, wf_id).await;),
+        parse_quote!(let (wf_tx, wf_rx) = donburako::workflow_channel(1);),
+        parse_quote!(op.lock().await.start_workflow(id, wf_id, wf_tx).await;),
         parse_quote!(exec_ids.push((id, wf_rx));),
         parse_quote!(store! {id | &start => #(#args)=>*}),
     ];
@@ -163,12 +164,12 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
         #for_block
         let mut flag = false;
-        for (id, wf_rx) in exec_ids {
+        for (id, mut wf_rx) in exec_ids {
             if flag {
                 op.lock().await.finish_workflow_by_execute_id(id).await;
                 continue;
             }
-            wf_rx.await.unwrap();
+            wf_rx.recv().await.unwrap();
             take!{id | &end => #(#rtns)=>*}
             op.lock().await.finish_workflow_by_execute_id(id).await;
             #(#tl_stmt)*
@@ -202,7 +203,8 @@ mod tests {
 
             for _ in [()] {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
+                let (wf_tx, wf_rx) = donburako::workflow_channel(1);
+                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -211,12 +213,12 @@ mod tests {
             }
 
             let mut flag = false;
-            for (id, wf_rx) in exec_ids {
+            for (id, mut wf_rx) in exec_ids {
                 if flag {
                     op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
-                wf_rx.await.unwrap();
+                wf_rx.recv().await.unwrap();
                 take!{
                     id | &end
                         => rec: i32
@@ -249,7 +251,8 @@ mod tests {
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
+                let (wf_tx, wf_rx) = donburako::workflow_channel(1);
+                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -258,12 +261,12 @@ mod tests {
             }
 
             let mut flag = false;
-            for (id, wf_rx) in exec_ids {
+            for (id, mut wf_rx) in exec_ids {
                 if flag {
                     op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
-                wf_rx.await.unwrap();
+                wf_rx.recv().await.unwrap();
                 take!{
                     id | &end
                         => res: i32
@@ -296,7 +299,8 @@ mod tests {
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
+                let (wf_tx, wf_rx) = donburako::workflow_channel(1);
+                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -305,12 +309,12 @@ mod tests {
             }
 
             let mut flag = false;
-            for (id, wf_rx) in exec_ids {
+            for (id, mut wf_rx) in exec_ids {
                 if flag {
                     op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
-                wf_rx.await.unwrap();
+                wf_rx.recv().await.unwrap();
                 take!{
                     id | &end
                         => res: Option<i32>
@@ -345,7 +349,8 @@ mod tests {
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for (item1, item2) in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
+                let (wf_tx, wf_rx) = donburako::workflow_channel(1);
+                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -355,12 +360,12 @@ mod tests {
             }
 
             let mut flag = false;
-            for (id, wf_rx) in exec_ids {
+            for (id, mut wf_rx) in exec_ids {
                 if flag {
                     op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
-                wf_rx.await.unwrap();
+                wf_rx.recv().await.unwrap();
                 take!{
                     id | &end
                         => res: i32
@@ -398,7 +403,8 @@ mod tests {
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
                 let id = donburako::operator::ExecutorId::default();
-                let wf_rx = op.lock().await.start_workflow(id, wf_id).await;
+                let (wf_tx, wf_rx) = donburako::workflow_channel(1);
+                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -407,12 +413,12 @@ mod tests {
             }
 
             let mut flag = false;
-            for (id, wf_rx) in exec_ids {
+            for (id, mut wf_rx) in exec_ids {
                 if flag {
                     op.lock().await.finish_workflow_by_execute_id(id).await;
                     continue;
                 }
-                wf_rx.await.unwrap();
+                wf_rx.recv().await.unwrap();
                 take!{
                     id | &end
                         => res: Option<i32>
