@@ -6,7 +6,8 @@ use syn::spanned::Spanned;
 use syn::visit::{visit_expr, Visit};
 use syn::{parse_quote, Error, Result};
 
-fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, output_count: usize) -> Result<()> {
+fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, rtn_types: &[syn::TypePath]) -> Result<()> {
+    let output_count = rtn_types.len();
     for stmt in stmts {
         if let syn::Stmt::Expr(syn::Expr::Return(ret), _) = stmt {
             if let Some(expr) = ret.expr.as_mut() {
@@ -110,7 +111,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
     };
     let mut func_stmts = func.block.stmts.clone();
     // 再帰的に return を探して、それを output! に変換する(func_rtn_types との数のチェックを行う)
-    convert_return_to_output(&mut func_stmts, func_rtn_types.len())?;
+    convert_return_to_output(&mut func_stmts, &func_rtn_types)?;
     let func_name_str = func_name.to_string();
     let build_fn: syn::ImplItemFn = if !args_type.is_empty() {
         let ifs = args_type
@@ -291,7 +292,9 @@ mod tests {
                             input!(n: i32);
                             println!("divide: {}", n);
                             sleep(Duration::from_secs(1)).await;
-                            output!(n, n);
+                            let _r_0: i32 = n;
+                            let _r_1: i32 = n;
+                            output!(_r_0, _r_1);
                         },
                         is_blocking: false,
                         choice: donburako::node::Choice::All,
@@ -359,7 +362,8 @@ mod tests {
                         func: node_func! {
                             input!(n: i32);
                             let result = n % 2 == 0;
-                            output!(result);
+                            let _r_0: bool = result;
+                            output!(_r_0);
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -425,7 +429,8 @@ mod tests {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::< Option<i32> >())],
                         func: node_func! {
                             input!(n: i32);
-                            output!(Some(n * 2));
+                            let _r_0: Option<i32> = Some(n * 2);
+                            output!(_r_0);
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -491,7 +496,8 @@ mod tests {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<i32>())],
                         func: node_func! {
                             input!(a: i32, b: i32);
-                            output!(a + b);
+                            let _r_0: i32 = a + b;
+                            output!(_r_0);
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -563,7 +569,9 @@ mod tests {
                         func: node_func! {
                             input!(port: Arc<i32>);
                             let port_clone = port.clone();
-                            output!(port, port_clone);
+                            let _r_0: Arc<i32> = port;
+                            let _r_1: Arc<i32> = port_clone;
+                            output!(_r_0, _r_1);
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
