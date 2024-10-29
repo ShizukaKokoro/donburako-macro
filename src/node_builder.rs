@@ -1,64 +1,119 @@
 use convert_case::{Case, Casing};
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
-use syn::visit::{visit_expr, Visit};
+use syn::visit_mut::{visit_expr_mut, visit_expr_tuple_mut, VisitMut};
 use syn::{parse_quote, Error, Result};
 
-fn convert_return_to_output(stmts: &mut Vec<syn::Stmt>, rtn_types: &[syn::TypePath]) -> Result<()> {
-    let output_count = rtn_types.len();
-    for stmt in stmts {
-        if let syn::Stmt::Expr(syn::Expr::Return(ret), _) = stmt {
-            if let Some(expr) = ret.expr.as_mut() {
-                match expr.as_mut() {
-                    syn::Expr::Tuple(tuple) => {
-                        if tuple.elems.len() != output_count {
-                            return Err(Error::new(
-                                tuple.span(),
-                                format!("return statement must have {} expressions", output_count),
-                            ));
-                        }
-                        *stmt = parse_quote! {
-                            output!#tuple;
-                        }
-                    }
-                    _ => {
-                        if output_count != 1 {
-                            return Err(Error::new(
-                                expr.span(),
-                                format!("return statement must have {} expressions", output_count),
-                            ));
-                        }
-                        *stmt = parse_quote! {
-                            output!(#expr);
-                        }
-                    }
-                }
-            } else {
-                return Err(Error::new(
-                    Span::call_site(),
-                    "return statement must have an expression",
+struct AwaitFinder<'a> {
+    found: bool,
+    rtn_types: &'a Vec<syn::TypePath>,
+    let_stmts: Option<(TokenStream, syn::Stmt)>,
+    in_return: bool,
+    error: Option<Error>,
+}
+impl<'a> AwaitFinder<'a> {
+    fn new(rtn_types: &'a Vec<syn::TypePath>) -> Self {
+        AwaitFinder {
+            found: false,
+            rtn_types,
+            let_stmts: None,
+            in_return: false,
+            error: None,
+        }
+    }
+}
+impl<'a> VisitMut for AwaitFinder<'a> {
+    fn visit_expr_await_mut(&mut self, _: &mut syn::ExprAwait) {
+        self.found = true;
+    }
+
+    fn visit_expr_tuple_mut(&mut self, expr_tuple: &mut syn::ExprTuple) {
+        if !self.in_return {
+            visit_expr_tuple_mut(self, expr_tuple);
+            return;
+        }
+        if expr_tuple.elems.len() != self.rtn_types.len() {
+            self.error = Some(Error::new(
+                expr_tuple.span(),
+                format!(
+                    "return statement must have {} expressions",
+                    self.rtn_types.len()
+                ),
+            ));
+            return;
+        }
+        let vars = (0..(expr_tuple.elems.len()))
+            .map(|i| syn::Ident::new(&format!("_r_{}", i), expr_tuple.span()));
+        let elems = expr_tuple.elems.iter();
+        let tys = self.rtn_types.iter();
+        let vars_clone = vars.clone();
+        let var_ts = quote! {(#(#vars),*)};
+        self.let_stmts = Some((
+            var_ts,
+            parse_quote! {
+                let (#(#vars_clone),*): (#(#tys),*) = (#(#elems),*);
+            },
+        ));
+    }
+
+    fn visit_expr_return_mut(&mut self, expr_return: &mut syn::ExprReturn) {
+        if self.in_return {
+            self.error = Some(Error::new(
+                expr_return.span(),
+                "return statement cannot be nested",
+            ));
+            return;
+        }
+        self.in_return = true;
+        if let Some(expr) = expr_return.expr.as_mut() {
+            self.visit_expr_mut(expr);
+        }
+        self.in_return = false;
+    }
+
+    fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
+        if self.in_return {
+            if let syn::Expr::Tuple(_) = expr {
+                visit_expr_mut(self, expr);
+                return;
+            }
+            if self.rtn_types.len() != 1 {
+                self.error = Some(Error::new(
+                    expr.span(),
+                    format!(
+                        "return statement must have {} expressions",
+                        self.rtn_types.len()
+                    ),
                 ));
+                return;
+            }
+            let vars = syn::Ident::new("_r_0", expr.span());
+            let ty = &self.rtn_types[0];
+            let vars_clone = vars.clone();
+            self.let_stmts = Some((
+                quote!((#vars)),
+                parse_quote! {
+                    let #vars_clone: #ty = #expr;
+                },
+            ));
+        } else {
+            visit_expr_mut(self, expr);
+            if let Some((vars, let_stmts)) = self.let_stmts.take() {
+                *expr = syn::Expr::Block(syn::ExprBlock {
+                    attrs: vec![],
+                    label: None,
+                    block: syn::Block {
+                        brace_token: syn::token::Brace::default(),
+                        stmts: vec![let_stmts, parse_quote!(output!#vars;)],
+                    },
+                });
             }
         }
     }
-    Ok(())
-}
 
-#[derive(Default)]
-struct AwaitFinder {
-    found: bool,
-}
-impl<'ast> Visit<'ast> for AwaitFinder {
-    fn visit_expr(&mut self, expr: &'ast syn::Expr) {
-        if let syn::Expr::Await(_) = expr {
-            self.found = true;
-        }
-        visit_expr(self, expr);
-    }
-
-    fn visit_macro(&mut self, _macro: &'ast syn::Macro) {
+    fn visit_macro_mut(&mut self, _macro: &mut syn::Macro) {
         if _macro.path.is_ident("workflow") {
             self.found = true;
         }
@@ -72,7 +127,7 @@ pub fn node_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
-    let func = input.parse::<syn::ItemFn>()?;
+    let mut func = input.parse::<syn::ItemFn>()?;
     let func_name = &func.sig.ident;
     let struct_name = syn::Ident::new(
         &format!("{}Builder", func_name.to_string().to_case(Case::Pascal)),
@@ -109,9 +164,13 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         }
         rtn_types
     };
-    let mut func_stmts = func.block.stmts.clone();
+    let mut finder = AwaitFinder::new(&func_rtn_types);
+    finder.visit_block_mut(&mut func.block);
+    if let Some(error) = finder.error {
+        return Err(error);
+    }
+    let func_stmts = func.block.stmts.clone();
     // 再帰的に return を探して、それを output! に変換する(func_rtn_types との数のチェックを行う)
-    convert_return_to_output(&mut func_stmts, &func_rtn_types)?;
     let func_name_str = func_name.to_string();
     let build_fn: syn::ImplItemFn = if !args_type.is_empty() {
         let ifs = args_type
@@ -167,8 +226,6 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
             }
         }
     };
-    let mut finder = AwaitFinder::default();
-    finder.visit_block(&func.block);
     let is_blocking = !finder.found;
     // 中でマクロを使っていると、変数の整合性がとれないため、ダミーの関数でなければならない
     let fake_func = {
@@ -292,9 +349,10 @@ mod tests {
                             input!(n: i32);
                             println!("divide: {}", n);
                             sleep(Duration::from_secs(1)).await;
-                            let _r_0: i32 = n;
-                            let _r_1: i32 = n;
-                            output!(_r_0, _r_1);
+                            {
+                                let (_r_0, _r_1): (i32, i32) = (n, n);
+                                output!(_r_0, _r_1);
+                            };
                         },
                         is_blocking: false,
                         choice: donburako::node::Choice::All,
@@ -362,8 +420,10 @@ mod tests {
                         func: node_func! {
                             input!(n: i32);
                             let result = n % 2 == 0;
-                            let _r_0: bool = result;
-                            output!(_r_0);
+                            {
+                                let _r_0: bool = result;
+                                output!(_r_0);
+                            };
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -429,8 +489,10 @@ mod tests {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::< Option<i32> >())],
                         func: node_func! {
                             input!(n: i32);
-                            let _r_0: Option<i32> = Some(n * 2);
-                            output!(_r_0);
+                            {
+                                let _r_0: Option<i32> = Some(n * 2);
+                                output!(_r_0);
+                            };
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -496,8 +558,10 @@ mod tests {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<i32>())],
                         func: node_func! {
                             input!(a: i32, b: i32);
-                            let _r_0: i32 = a + b;
-                            output!(_r_0);
+                            {
+                                let _r_0: i32 = a + b;
+                                output!(_r_0);
+                            };
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
@@ -569,9 +633,10 @@ mod tests {
                         func: node_func! {
                             input!(port: Arc<i32>);
                             let port_clone = port.clone();
-                            let _r_0: Arc<i32> = port;
-                            let _r_1: Arc<i32> = port_clone;
-                            output!(_r_0, _r_1);
+                            {
+                                let (_r_0, _r_1): (Arc<i32>, Arc<i32>) = (port, port_clone);
+                                output!(_r_0, _r_1);
+                            };
                         },
                         is_blocking: true,
                         choice: donburako::node::Choice::All,
