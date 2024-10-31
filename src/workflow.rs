@@ -151,9 +151,8 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         tl_stmt.push(break_if);
     }
     for_block.body.stmts = vec![
-        parse_quote!(let id = donburako::operator::ExecutorId::default();),
         parse_quote!(let (wf_tx, wf_rx) = donburako::workflow_channel(1);),
-        parse_quote!(op.lock().await.start_workflow(id, wf_id, wf_tx).await;),
+        parse_quote!(let id = op.lock().await.start_workflow(wf_id, wf_tx).await;),
         parse_quote!(exec_ids.push((id, wf_rx));),
         parse_quote!(store! {id | &start => #(#args)=>*}),
     ];
@@ -202,9 +201,8 @@ mod tests {
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
 
             for _ in [()] {
-                let id = donburako::operator::ExecutorId::default();
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
-                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
+                let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -250,9 +248,8 @@ mod tests {
             let mut exec_ids = Vec::new();
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
-                let id = donburako::operator::ExecutorId::default();
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
-                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
+                let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -298,9 +295,8 @@ mod tests {
             let mut exec_ids = Vec::new();
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
-                let id = donburako::operator::ExecutorId::default();
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
-                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
+                let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -348,9 +344,8 @@ mod tests {
             let mut exec_ids = Vec::new();
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for (item1, item2) in list {
-                let id = donburako::operator::ExecutorId::default();
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
-                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
+                let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
@@ -402,9 +397,8 @@ mod tests {
             let mut exec_ids = Vec::new();
             let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
             for item in list {
-                let id = donburako::operator::ExecutorId::default();
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
-                op.lock().await.start_workflow(id, wf_id, wf_tx).await;
+                let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
                 store!{
                     id | &start
