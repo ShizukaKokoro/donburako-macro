@@ -222,21 +222,32 @@ mod tests {
             }
 
             let mut flag = false;
+            let mut errored = false;
             for (id, mut wf_rx) in exec_ids {
                 if flag {
-                    op.lock().await.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     continue;
                 }
-                wf_rx.recv().await.unwrap();
-                take!{
-                    id | &end
-                        => rec: i32
+                match wf_rx.recv().await.unwrap() {
+                    donburako::channel::WfMessage::Done(_) => {
+                        take!{
+                            id | &end
+                                => rec: i32
+                        }
+                        op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                        result = Some(rec);
+                        if result.is_some() {
+                            flag = true;
+                        }
+                    }
+                    donburako::channel::WfMessage::Error(_) => {
+                        op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                        errored = true;
+                    }
                 }
-                op.lock().await.finish_workflow_by_execute_id(id).await;
-                result = Some(rec);
-                if result.is_some() {
-                    flag = true;
-                }
+            }
+            if errored {
+                return Err(donburako::node::NodeError::InnerWorkflowError);
             }
         }
         .to_string();
@@ -269,19 +280,30 @@ mod tests {
             }
 
             let mut flag = false;
+            let mut errored = false;
             for (id, mut wf_rx) in exec_ids {
                 if flag {
-                    op.lock().await.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     continue;
                 }
-                wf_rx.recv().await.unwrap();
-                take!{
-                    id | &end
-                        => res: i32
-                        => f: bool
+                match wf_rx.recv().await.unwrap() {
+                    donburako::channel::WfMessage::Done(_) => {
+                        take!{
+                            id | &end
+                                => res: i32
+                                => f: bool
+                        }
+                        op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                        result.push(res);
+                    }
+                    donburako::channel::WfMessage::Error(_) => {
+                        op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                        errored = true;
+                    }
                 }
-                op.lock().await.finish_workflow_by_execute_id(id).await;
-                result.push(res);
+            }
+            if errored {
+                return Err(donburako::node::NodeError::InnerWorkflowError);
             }
         }
         .to_string();
@@ -316,20 +338,31 @@ mod tests {
             }
 
             let mut flag = false;
+            let mut errored = false;
             for (id, mut wf_rx) in exec_ids {
                 if flag {
-                    op.lock().await.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     continue;
                 }
-                wf_rx.recv().await.unwrap();
-                take!{
-                    id | &end
-                        => res: Option<i32>
+                match wf_rx.recv().await.unwrap() {
+                    donburako::channel::WfMessage::Done(_) => {
+                        take!{
+                            id | &end
+                                => res: Option<i32>
+                        }
+                        op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                        if let Some(res) = res {
+                            result.push(res);
+                        }
+                    }
+                    donburako::channel::WfMessage::Error(_) => {
+                        op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                        errored = true;
+                    }
                 }
-                op.lock().await.finish_workflow_by_execute_id(id).await;
-                if let Some(res) = res {
-                    result.push(res);
-                }
+            }
+            if errored {
+                return Err(donburako::node::NodeError::InnerWorkflowError);
             }
         }
         .to_string();
@@ -366,21 +399,32 @@ mod tests {
             }
 
             let mut flag = false;
+            let mut errored = false;
             for (id, mut wf_rx) in exec_ids {
                 if flag {
-                    op.lock().await.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     continue;
                 }
-                wf_rx.recv().await.unwrap();
-                take!{
-                    id | &end
-                        => res: i32
+                match wf_rx.recv().await.unwrap() {
+                    donburako::channel::WfMessage::Done(_) => {
+                        take!{
+                            id | &end
+                                => res: i32
+                        }
+                        op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                        result.push(res);
+                        if result.len() == 3 {
+                            flag = true;
+                        }
+                    }
+                    donburako::channel::WfMessage::Error(_) => {
+                        op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                        errored = true;
+                    }
                 }
-                op.lock().await.finish_workflow_by_execute_id(id).await;
-                result.push(res);
-                if result.len() == 3 {
-                    flag = true;
-                }
+            }
+            if errored {
+                return Err(donburako::node::NodeError::InnerWorkflowError);
             }
         }
         .to_string();
@@ -418,23 +462,34 @@ mod tests {
             }
 
             let mut flag = false;
+            let mut errored = false;
             for (id, mut wf_rx) in exec_ids {
                 if flag {
-                    op.lock().await.finish_workflow_by_execute_id(id).await;
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     continue;
                 }
-                wf_rx.recv().await.unwrap();
-                take!{
-                    id | &end
-                        => res: Option<i32>
+                match wf_rx.recv().await.unwrap() {
+                    donburako::channel::WfMessage::Done(_) => {
+                        take!{
+                            id | &end
+                                => res: Option<i32>
+                        }
+                        op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                        if let Some(res) = res {
+                            result += res;
+                        }
+                        if result.len() == 3 {
+                            flag = true;
+                        }
+                    }
+                    donburako::channel::WfMessage::Error(_) => {
+                        op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                        errored = true;
+                    }
                 }
-                op.lock().await.finish_workflow_by_execute_id(id).await;
-                if let Some(res) = res {
-                    result += res;
-                }
-                if result.len() == 3 {
-                    flag = true;
-                }
+            }
+            if errored {
+                return Err(donburako::node::NodeError::InnerWorkflowError);
             }
         }
         .to_string();
