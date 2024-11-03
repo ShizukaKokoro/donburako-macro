@@ -163,15 +163,26 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         let (start, end) = op.lock().await.get_start_end_edges(&wf_id);
         #for_block
         let mut flag = false;
+        let mut errored = false;
         for (id, mut wf_rx) in exec_ids {
             if flag {
-                op.lock().await.finish_workflow_by_execute_id(id).await;
+                op.lock().await.finish_workflow_by_execute_id(id, true).await;
                 continue;
             }
-            wf_rx.recv().await.unwrap();
-            take!{id | &end => #(#rtns)=>*}
-            op.lock().await.finish_workflow_by_execute_id(id).await;
-            #(#tl_stmt)*
+            match wf_rx.recv().await.unwrap() {
+                donburako::channel::WfMessage::Done(_) => {
+                    take!{id | &end => #(#rtns)=>*}
+                    op.lock().await.finish_workflow_by_execute_id(id, true).await;
+                    #(#tl_stmt)*
+                }
+                donburako::channel::WfMessage::Error(_) => {
+                    op.lock().await.finish_workflow_by_execute_id(id, false).await;
+                    errored = true;
+                }
+            }
+        }
+        if errored {
+            return Err(donburako::node::NodeError::InnerWorkflowError);
         }
     })
 }
