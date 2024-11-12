@@ -154,7 +154,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
         parse_quote!(let (wf_tx, wf_rx) = donburako::workflow_channel(1);),
         parse_quote!(let id = op.lock().await.start_workflow(wf_id, wf_tx).await;),
         parse_quote!(exec_ids.push((id, wf_rx));),
-        parse_quote!(store! {id | &start => #(#args)=>*}),
+        parse_quote!(donburako::macros::store! {id | &start => #(#args)=>*}),
     ];
     Ok(quote! {
         let wf_id = donburako::workflow::WorkflowId::new(#wf_name);
@@ -171,7 +171,7 @@ pub fn workflow_parse(input: ParseStream) -> Result<TokenStream> {
             }
             match wf_rx.recv().await.unwrap() {
                 donburako::channel::WfMessage::Done(_) => {
-                    take!{id | &end => #(#rtns)=>*}
+                    donburako::macros::take!{id | &end => #(#rtns)=>*}
                     op.lock().await.finish_workflow_by_execute_id(id, true).await;
                     #(#tl_stmt)*
                 }
@@ -215,7 +215,7 @@ mod tests {
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
                 let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
-                store!{
+                donburako::macros::store!{
                     id | &start
                         => n
                 }
@@ -230,7 +230,7 @@ mod tests {
                 }
                 match wf_rx.recv().await.unwrap() {
                     donburako::channel::WfMessage::Done(_) => {
-                        take!{
+                        donburako::macros::take!{
                             id | &end
                                 => rec: i32
                         }
@@ -273,7 +273,7 @@ mod tests {
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
                 let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
-                store!{
+                donburako::macros::store!{
                     id | &start
                         => item
                 }
@@ -288,7 +288,7 @@ mod tests {
                 }
                 match wf_rx.recv().await.unwrap() {
                     donburako::channel::WfMessage::Done(_) => {
-                        take!{
+                        donburako::macros::take!{
                             id | &end
                                 => res: i32
                                 => f: bool
@@ -331,7 +331,7 @@ mod tests {
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
                 let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
-                store!{
+                donburako::macros::store!{
                     id | &start
                         => item
                 }
@@ -346,7 +346,7 @@ mod tests {
                 }
                 match wf_rx.recv().await.unwrap() {
                     donburako::channel::WfMessage::Done(_) => {
-                        take!{
+                        donburako::macros::take!{
                             id | &end
                                 => res: Option<i32>
                         }
@@ -391,7 +391,7 @@ mod tests {
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
                 let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
-                store!{
+                donburako::macros::store!{
                     id | &start
                         => item1
                         => item2
@@ -407,7 +407,7 @@ mod tests {
                 }
                 match wf_rx.recv().await.unwrap() {
                     donburako::channel::WfMessage::Done(_) => {
-                        take!{
+                        donburako::macros::take!{
                             id | &end
                                 => res: i32
                         }
@@ -455,7 +455,7 @@ mod tests {
                 let (wf_tx, wf_rx) = donburako::workflow_channel(1);
                 let id = op.lock().await.start_workflow(wf_id, wf_tx).await;
                 exec_ids.push((id, wf_rx));
-                store!{
+                donburako::macros::store!{
                     id | &start
                         => item
                 }
@@ -470,7 +470,7 @@ mod tests {
                 }
                 match wf_rx.recv().await.unwrap() {
                     donburako::channel::WfMessage::Done(_) => {
-                        take!{
+                        donburako::macros::take!{
                             id | &end
                                 => res: Option<i32>
                         }

@@ -299,7 +299,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             }
 
             self.builder_paths
-                .push(parse_quote! { branch_builder!(#true_cnt, #false_cnt) });
+                .push(parse_quote! { donburako::macros::branch_builder!(#true_cnt, #false_cnt) });
 
             self.tmp_manage_edges.push(true_edges);
             self.visit_block(then_branch);
@@ -367,7 +367,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                             syn::Pat::Type(syn::PatType { ty, .. }) => {
                                 let ty = get_types_from_type(ty, false).unwrap().pop().unwrap();
                                 self.builder_paths
-                                    .push(parse_quote! { select_builder!(#ty) });
+                                    .push(parse_quote! { donburako::macros::select_builder!(#ty) });
                             }
                             _ => {
                                 self.err = Some(Error::new(
@@ -650,8 +650,8 @@ mod tests {
 
                 let node_divide2 = Divide2Builder::new();
                 let node_is_even = some::IsEvenBuilder::new();
-                let node_select = select_builder!(Option<i32>);
-                let node_branch_0 = branch_builder!(1usize, 1usize);
+                let node_select = donburako::macros::select_builder!(Option<i32>);
+                let node_branch_0 = donburako::macros::branch_builder!(1usize, 1usize);
                 let node_double = DoubleBuilder::new();
                 let node_none = NoneBuilder::new();
 
@@ -739,8 +739,8 @@ mod tests {
 
                 let node_divide3 = Divide3Builder::new();
                 let node_is_zero = IsZeroBuilder::new();
-                let node_selected = select_builder!(i32);
-                let node_branch_0 = branch_builder!(1usize, 3usize);
+                let node_selected = donburako::macros::select_builder!(i32);
+                let node_branch_0 = donburako::macros::branch_builder!(1usize, 3usize);
                 let node_zero = ZeroBuilder::new();
                 let node_sub = SubBuilder::new();
                 let node_rec = RecBuilder::new();
