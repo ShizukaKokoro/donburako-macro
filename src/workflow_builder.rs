@@ -444,6 +444,7 @@ pub fn workflow_builder_impl(_: TokenStream, tokens: TokenStream) -> TokenStream
 
 pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let func = input.parse::<syn::ItemFn>()?;
+    let docs = func.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
     let func_name = &func.sig.ident;
     let func_name_workflow = syn::Ident::new(&format!("{}_workflow", func_name), func_name.span());
     let func_name_str = func_name.to_string();
@@ -547,6 +548,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     let end_edges: Vec<syn::Ident> = visitor.output_edge.iter().map(edge_name).collect();
 
     Ok(quote! {
+        #( #docs )*
         #func_vis fn #func_name_workflow() -> Result<
             (
                 donburako::workflow::WorkflowId,
@@ -645,6 +647,7 @@ mod tests {
     #[test]
     fn test_workflow_builder_impl() {
         let input = quote! {
+            /// Func map
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
@@ -660,6 +663,7 @@ mod tests {
         };
         let result = workflow_builder_impl(quote! {}, input).to_string();
         let expected = quote! {
+            /// Func map
             fn func_map_workflow() -> Result<
                 (
                     donburako::workflow::WorkflowId,
@@ -712,6 +716,7 @@ mod tests {
 
                 Ok((wf_id, builder, vec![edge_n], vec![edge_select]))
             }
+            /// Func map
             async fn func_map(n: i32) -> Option<i32> {
                 let (n0, n1) = divide2(n).await;
                 let even = some::is_even(n0);
