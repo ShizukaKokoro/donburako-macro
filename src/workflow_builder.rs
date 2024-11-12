@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -55,8 +55,8 @@ fn get_types_from_type(ty: &syn::Type, allow_tuple: bool) -> Result<Vec<syn::Typ
     Ok(types)
 }
 
-fn node_name(ident: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(&format!("node_{}", ident), ident.span())
+fn node_name(ident: &syn::Ident, cnt: usize) -> syn::Ident {
+    syn::Ident::new(&format!("node_{}_{}", ident, cnt), ident.span())
 }
 
 fn builder_name(path: &mut syn::Path) {
@@ -99,6 +99,7 @@ impl ManageQueue {
 #[derive(Debug)]
 struct StmtVisitor {
     pub err: Option<Error>,
+    node_cnt: HashMap<syn::Ident, usize>,
     pub node_names: Vec<(syn::Ident, Vec<syn::Ident>, usize)>, // (ノードの名前, エッジの名前, 管理エッジの数)
     pub builder_paths: Vec<TokenStream>,
     pub edge_map: HashSet<syn::Ident>,
@@ -119,6 +120,7 @@ impl StmtVisitor {
         }
         Ok(Self {
             err: None,
+            node_cnt: HashMap::new(),
             node_names: Vec::new(),
             builder_paths: Vec::new(),
             edge_map,
@@ -199,8 +201,13 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                         return;
                     }
                 }
+                let cnt = self
+                    .node_cnt
+                    .entry(ident.clone())
+                    .and_modify(|e| *e += 1)
+                    .or_insert(0);
                 self.node_names
-                    .push((node_name(&ident), edge_vec, manage_cnt));
+                    .push((node_name(&ident, *cnt), edge_vec, manage_cnt));
                 builder_name(&mut expr_path.path);
                 self.builder_paths.push(parse_quote! { #expr_path::new() });
             }
@@ -235,7 +242,12 @@ impl<'ast> Visit<'ast> for StmtVisitor {
             return;
         }
         self.edge_idents.push((Some(edge_name_indent), node_idx, 0));
-        self.node_names.push((node_name(&ident), vec![], 0));
+        let cnt = self
+            .node_cnt
+            .entry(ident.clone())
+            .and_modify(|e| *e += 1)
+            .or_insert(0);
+        self.node_names.push((node_name(&ident, *cnt), vec![], 0));
         if let syn::ExprIf {
             cond,
             then_branch,
@@ -659,44 +671,44 @@ mod tests {
             > {
                 let wf_id = donburako::workflow::WorkflowId::new("func_map");
 
-                let node_divide2 = Divide2Builder::new();
-                let node_is_even = some::IsEvenBuilder::new();
-                let node_select = donburako::macros::select_builder!(Option<i32>);
+                let node_divide2_0 = Divide2Builder::new();
+                let node_is_even_0 = some::IsEvenBuilder::new();
+                let node_select_0 = donburako::macros::select_builder!(Option<i32>);
                 let node_branch_0 = donburako::macros::branch_builder!(1usize, 1usize);
-                let node_double = DoubleBuilder::new();
-                let node_none = NoneBuilder::new();
+                let node_double_0 = DoubleBuilder::new();
+                let node_none_0 = NoneBuilder::new();
 
                 let edge_n = std::sync::Arc::new(donburako::edge::Edge::new::<i32>());
-                let edge_n0 = node_divide2.outputs()[0usize].clone();
-                let edge_n1 = node_divide2.outputs()[1usize].clone();
-                let edge_even = node_is_even.outputs()[0usize].clone();
-                let edge_select = node_select.outputs()[0usize].clone();
+                let edge_n0 = node_divide2_0.outputs()[0usize].clone();
+                let edge_n1 = node_divide2_0.outputs()[1usize].clone();
+                let edge_even = node_is_even_0.outputs()[0usize].clone();
+                let edge_select = node_select_0.outputs()[0usize].clone();
                 let edge_true_0_0 = node_branch_0.outputs()[0usize].clone();
                 let edge_false_0_0 = node_branch_0.outputs()[1usize].clone();
-                let edge_double = node_double.outputs()[0usize].clone();
-                let edge_none = node_none.outputs()[0usize].clone();
+                let edge_double = node_double_0.outputs()[0usize].clone();
+                let edge_none = node_none_0.outputs()[0usize].clone();
 
-                assert_eq!(node_divide2.outputs().len(), 2usize);
-                assert_eq!(node_is_even.outputs().len(), 1usize);
-                assert_eq!(node_select.outputs().len(), 1usize);
+                assert_eq!(node_divide2_0.outputs().len(), 2usize);
+                assert_eq!(node_is_even_0.outputs().len(), 1usize);
+                assert_eq!(node_select_0.outputs().len(), 1usize);
                 assert_eq!(node_branch_0.outputs().len(), 2usize);
-                assert_eq!(node_double.outputs().len(), 1usize);
-                assert_eq!(node_none.outputs().len(), 1usize);
+                assert_eq!(node_double_0.outputs().len(), 1usize);
+                assert_eq!(node_none_0.outputs().len(), 1usize);
 
-                let node_divide2 = node_divide2.build(vec![edge_n.clone()], 0usize)?;
-                let node_is_even = node_is_even.build(vec![edge_n0.clone()], 0usize)?;
-                let node_select = node_select.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
+                let node_divide2_0 = node_divide2_0.build(vec![edge_n.clone()], 0usize)?;
+                let node_is_even_0 = node_is_even_0.build(vec![edge_n0.clone()], 0usize)?;
+                let node_select_0 = node_select_0.build(vec![edge_double.clone(), edge_none.clone()], 0usize)?;
                 let node_branch_0 = node_branch_0.build(vec![edge_even.clone()], 0usize)?;
-                let node_double = node_double.build(vec![edge_true_0_0.clone(), edge_n1.clone()], 1usize)?;
-                let node_none = node_none.build(vec![edge_false_0_0.clone()], 1usize)?;
+                let node_double_0 = node_double_0.build(vec![edge_true_0_0.clone(), edge_n1.clone()], 1usize)?;
+                let node_none_0 = node_none_0.build(vec![edge_false_0_0.clone()], 1usize)?;
 
                 let builder = donburako::workflow::WorkflowBuilder::default()
-                    .add_node(node_divide2)?
-                    .add_node(node_is_even)?
-                    .add_node(node_select)?
+                    .add_node(node_divide2_0)?
+                    .add_node(node_is_even_0)?
+                    .add_node(node_select_0)?
                     .add_node(node_branch_0)?
-                    .add_node(node_double)?
-                    .add_node(node_none)?;
+                    .add_node(node_double_0)?
+                    .add_node(node_none_0)?;
 
                 Ok((wf_id, builder, vec![edge_n], vec![edge_select]))
             }
@@ -748,58 +760,58 @@ mod tests {
             > {
                 let wf_id = donburako::workflow::WorkflowId::new("sum");
 
-                let node_divide3 = Divide3Builder::new();
-                let node_is_zero = IsZeroBuilder::new();
-                let node_selected = donburako::macros::select_builder!(i32);
+                let node_divide3_0 = Divide3Builder::new();
+                let node_is_zero_0 = IsZeroBuilder::new();
+                let node_selected_0 = donburako::macros::select_builder!(i32);
                 let node_branch_0 = donburako::macros::branch_builder!(1usize, 3usize);
-                let node_zero = ZeroBuilder::new();
-                let node_sub = SubBuilder::new();
-                let node_rec = RecBuilder::new();
-                let node_add = AddBuilder::new();
+                let node_zero_0 = ZeroBuilder::new();
+                let node_sub_0 = SubBuilder::new();
+                let node_rec_0 = RecBuilder::new();
+                let node_add_0 = AddBuilder::new();
 
                 let edge_n = std::sync::Arc::new(donburako::edge::Edge::new::<i32>());
-                let edge_n0 = node_divide3.outputs()[0usize].clone();
-                let edge_n1 = node_divide3.outputs()[1usize].clone();
-                let edge_n2 = node_divide3.outputs()[2usize].clone();
-                let edge_is_zero = node_is_zero.outputs()[0usize].clone();
-                let edge_selected = node_selected.outputs()[0usize].clone();
+                let edge_n0 = node_divide3_0.outputs()[0usize].clone();
+                let edge_n1 = node_divide3_0.outputs()[1usize].clone();
+                let edge_n2 = node_divide3_0.outputs()[2usize].clone();
+                let edge_is_zero = node_is_zero_0.outputs()[0usize].clone();
+                let edge_selected = node_selected_0.outputs()[0usize].clone();
                 let edge_true_0_0 = node_branch_0.outputs()[0usize].clone();
                 let edge_false_0_0 = node_branch_0.outputs()[1usize].clone();
                 let edge_false_0_1 = node_branch_0.outputs()[2usize].clone();
                 let edge_false_0_2 = node_branch_0.outputs()[3usize].clone();
-                let edge_zero = node_zero.outputs()[0usize].clone();
-                let edge_sub = node_sub.outputs()[0usize].clone();
-                let edge_rec = node_rec.outputs()[0usize].clone();
-                let edge_add = node_add.outputs()[0usize].clone();
+                let edge_zero = node_zero_0.outputs()[0usize].clone();
+                let edge_sub = node_sub_0.outputs()[0usize].clone();
+                let edge_rec = node_rec_0.outputs()[0usize].clone();
+                let edge_add = node_add_0.outputs()[0usize].clone();
 
-                assert_eq!(node_divide3.outputs().len(), 3usize);
-                assert_eq!(node_is_zero.outputs().len(), 1usize);
-                assert_eq!(node_selected.outputs().len(), 1usize);
+                assert_eq!(node_divide3_0.outputs().len(), 3usize);
+                assert_eq!(node_is_zero_0.outputs().len(), 1usize);
+                assert_eq!(node_selected_0.outputs().len(), 1usize);
                 assert_eq!(node_branch_0.outputs().len(), 4usize);
-                assert_eq!(node_zero.outputs().len(), 1usize);
-                assert_eq!(node_sub.outputs().len(), 1usize);
-                assert_eq!(node_rec.outputs().len(), 1usize);
-                assert_eq!(node_add.outputs().len(), 1usize);
+                assert_eq!(node_zero_0.outputs().len(), 1usize);
+                assert_eq!(node_sub_0.outputs().len(), 1usize);
+                assert_eq!(node_rec_0.outputs().len(), 1usize);
+                assert_eq!(node_add_0.outputs().len(), 1usize);
 
-                let node_divide3 = node_divide3.build(vec![edge_n.clone()], 0usize)?;
-                let node_is_zero = node_is_zero.build(vec![edge_n0.clone()], 0usize)?;
-                let node_selected = node_selected.build(vec![edge_zero.clone(), edge_add.clone()], 0usize)?;
+                let node_divide3_0 = node_divide3_0.build(vec![edge_n.clone()], 0usize)?;
+                let node_is_zero_0 = node_is_zero_0.build(vec![edge_n0.clone()], 0usize)?;
+                let node_selected_0 = node_selected_0.build(vec![edge_zero.clone(), edge_add.clone()], 0usize)?;
                 let node_branch_0 = node_branch_0.build(vec![edge_is_zero.clone()], 0usize)?;
-                let node_zero = node_zero.build(vec![edge_true_0_0.clone()], 1usize)?;
-                let node_sub = node_sub.build(vec![edge_false_0_0.clone(), edge_n1.clone()], 1usize)?;
-                let node_rec = node_rec.build(vec![edge_false_0_1.clone(), edge_sub.clone()], 1usize)?;
-                let node_add =
-                    node_add.build(vec![edge_false_0_2.clone(), edge_n2.clone(), edge_rec.clone()], 1usize)?;
+                let node_zero_0 = node_zero_0.build(vec![edge_true_0_0.clone()], 1usize)?;
+                let node_sub_0 = node_sub_0.build(vec![edge_false_0_0.clone(), edge_n1.clone()], 1usize)?;
+                let node_rec_0 = node_rec_0.build(vec![edge_false_0_1.clone(), edge_sub.clone()], 1usize)?;
+                let node_add_0 =
+                    node_add_0.build(vec![edge_false_0_2.clone(), edge_n2.clone(), edge_rec.clone()], 1usize)?;
 
                 let builder = donburako::workflow::WorkflowBuilder::default()
-                    .add_node(node_divide3)?
-                    .add_node(node_is_zero)?
-                    .add_node(node_selected)?
+                    .add_node(node_divide3_0)?
+                    .add_node(node_is_zero_0)?
+                    .add_node(node_selected_0)?
                     .add_node(node_branch_0)?
-                    .add_node(node_zero)?
-                    .add_node(node_sub)?
-                    .add_node(node_rec)?
-                    .add_node(node_add)?;
+                    .add_node(node_zero_0)?
+                    .add_node(node_sub_0)?
+                    .add_node(node_rec_0)?
+                    .add_node(node_add_0)?;
 
                 Ok((wf_id, builder, vec![edge_n], vec![edge_selected]))
             }
@@ -843,18 +855,18 @@ mod tests {
             > {
                 let wf_id = donburako::workflow::WorkflowId::new("app_test");
 
-                let node_print_string = PrintStringBuilder::new();
+                let node_print_string_0 = PrintStringBuilder::new();
 
                 let edge_s = std::sync::Arc::new(donburako::edge::Edge::new::<String>());
-                let __ignore_tmp_node_print_string_0 = node_print_string.outputs()[0usize].clone();
+                let __ignore_tmp_node_print_string_0_0 = node_print_string_0.outputs()[0usize].clone();
 
-                assert_eq!(node_print_string.outputs().len(), 1usize);
+                assert_eq!(node_print_string_0.outputs().len(), 1usize);
 
-                let node_print_string = node_print_string.build(vec![edge_s.clone()], 0usize)?;
+                let node_print_string_0 = node_print_string_0.build(vec![edge_s.clone()], 0usize)?;
 
                 let builder = donburako::workflow::WorkflowBuilder::default()
-                    .add_node(node_print_string)?
-                    .ignore_edge(__ignore_tmp_node_print_string_0)
+                    .add_node(node_print_string_0)?
+                    .ignore_edge(__ignore_tmp_node_print_string_0_0)
                     ;
 
                 Ok((wf_id, builder, vec![edge_s], vec![]))
@@ -873,7 +885,7 @@ mod tests {
         let input = quote! {
             fn app_test() {
                 test_task();
-                return;
+                test_task();
             }
         };
         let result = workflow_builder_impl(quote! {}, input).to_string();
@@ -889,21 +901,25 @@ mod tests {
             > {
                 let wf_id = donburako::workflow::WorkflowId::new("app_test");
 
-                let node_test_task = TestTaskBuilder::new();
+                let node_test_task_0 = TestTaskBuilder::new();
+                let node_test_task_1 = TestTaskBuilder::new();
 
-                assert_eq!(node_test_task.outputs().len(), 0usize);
+                assert_eq!(node_test_task_0.outputs().len(), 0usize);
+                assert_eq!(node_test_task_1.outputs().len(), 0usize);
 
-                let node_test_task = node_test_task.build(vec![], 0usize)?;
+                let node_test_task_0 = node_test_task_0.build(vec![], 0usize)?;
+                let node_test_task_1 = node_test_task_1.build(vec![], 0usize)?;
 
                 let builder = donburako::workflow::WorkflowBuilder::default()
-                    .add_node(node_test_task)?
+                    .add_node(node_test_task_0)?
+                    .add_node(node_test_task_1)?
                     ;
 
                 Ok((wf_id, builder, vec![], vec![]))
             }
             fn app_test() {
                 test_task();
-                return;
+                test_task();
             }
         }
         .to_string();
