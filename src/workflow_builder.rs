@@ -406,6 +406,7 @@ impl<'ast> Visit<'ast> for StmtVisitor {
                     }
                 }
                 syn::Expr::Return(expr_return) => self.visit_expr_return(expr_return),
+                syn::Expr::Call(expr_call) => self.visit_expr_call(expr_call),
                 _ => {
                     self.err = Some(Error::new(
                         expr.span(),
@@ -465,28 +466,12 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
     }
     assert_eq!(visitor.tmp_manage_edges.len(), 0);
 
-    let mut node_var_let: Vec<TokenStream> = Vec::new();
-    let mut build_nodes: Vec<TokenStream> = Vec::new();
-    let mut add_nodes: Vec<TokenStream> = Vec::new();
-    for ((node_name, edge_vec, manage_cnt), path) in
-        visitor.node_names.iter().zip(visitor.builder_paths.iter())
-    {
-        node_var_let.push(quote! {
-            let #node_name = #path;
-        });
-        build_nodes.push(quote! {
-            let #node_name = #node_name.build(vec![#(#edge_vec.clone()),*], #manage_cnt)?;
-        });
-        add_nodes.push(quote! {
-            .add_node(#node_name)?
-        });
-    }
-
     let mut edge_exprs: Vec<TokenStream> = Vec::new();
     let mut node_output_asserts: Vec<TokenStream> = Vec::new();
     let mut cnt = 0usize;
     let mut pre = None;
     let mut ignore_edges = Vec::new();
+    let mut checked = HashSet::new();
     for (edge_name, node_idx, edge_idx) in visitor.edge_idents.iter() {
         let node_name = &visitor.node_names[*node_idx].0;
         if pre.is_none() {
@@ -496,6 +481,7 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
             node_output_asserts.push(quote! {
                 assert_eq!(#pre.outputs().len(), #cnt);
             });
+            let _ = checked.insert(pre.as_ref().unwrap().clone());
             cnt = 0;
             pre = Some(node_name.clone());
         }
@@ -517,9 +503,34 @@ pub fn workflow_builder_parse(input: ParseStream) -> Result<TokenStream> {
         }
         cnt += 1;
     }
-    node_output_asserts.push(quote! {
-        assert_eq!(#pre.outputs().len(), #cnt);
-    });
+    if pre.is_some() {
+        node_output_asserts.push(quote! {
+            assert_eq!(#pre.outputs().len(), #cnt);
+        });
+        let _ = checked.insert(pre.as_ref().unwrap().clone());
+    }
+
+    let mut node_var_let: Vec<TokenStream> = Vec::new();
+    let mut build_nodes: Vec<TokenStream> = Vec::new();
+    let mut add_nodes: Vec<TokenStream> = Vec::new();
+    for ((node_name, edge_vec, manage_cnt), path) in
+        visitor.node_names.iter().zip(visitor.builder_paths.iter())
+    {
+        node_var_let.push(quote! {
+            let #node_name = #path;
+        });
+        build_nodes.push(quote! {
+            let #node_name = #node_name.build(vec![#(#edge_vec.clone()),*], #manage_cnt)?;
+        });
+        add_nodes.push(quote! {
+            .add_node(#node_name)?
+        });
+        if !checked.contains(node_name) {
+            node_output_asserts.push(quote! {
+                assert_eq!(#node_name.outputs().len(), 0usize);
+            });
+        }
+    }
 
     let end_edges: Vec<syn::Ident> = visitor.output_edge.iter().map(edge_name).collect();
 
@@ -850,6 +861,48 @@ mod tests {
             }
             fn app_test(s: String) {
                 let _ = print_string(s);
+                return;
+            }
+        }
+        .to_string();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_workflow_builder_impl_no_return() {
+        let input = quote! {
+            fn app_test() {
+                test_task();
+                return;
+            }
+        };
+        let result = workflow_builder_impl(quote! {}, input).to_string();
+        let expected = quote! {
+            fn app_test_workflow() -> Result<
+                (
+                    donburako::workflow::WorkflowId,
+                    donburako::workflow::WorkflowBuilder,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                    Vec<std::sync::Arc<donburako::edge::Edge>>,
+                ),
+                Box<dyn std::error::Error>,
+            > {
+                let wf_id = donburako::workflow::WorkflowId::new("app_test");
+
+                let node_test_task = TestTaskBuilder::new();
+
+                assert_eq!(node_test_task.outputs().len(), 0usize);
+
+                let node_test_task = node_test_task.build(vec![], 0usize)?;
+
+                let builder = donburako::workflow::WorkflowBuilder::default()
+                    .add_node(node_test_task)?
+                    ;
+
+                Ok((wf_id, builder, vec![], vec![]))
+            }
+            fn app_test() {
+                test_task();
                 return;
             }
         }
