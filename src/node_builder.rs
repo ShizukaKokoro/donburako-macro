@@ -116,6 +116,10 @@ impl<'a> VisitMut for AwaitFinder<'a> {
     fn visit_macro_mut(&mut self, _macro: &mut syn::Macro) {
         if _macro.path.is_ident("workflow") {
             self.found = true;
+        } else if let Some(ident) = _macro.path.segments.last().map(|s| &s.ident) {
+            if ident == "workflow" {
+                self.found = true;
+            }
         }
     }
 }
