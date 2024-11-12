@@ -32,7 +32,7 @@ pub fn select_builder_parse(input: ParseStream) -> Result<TokenStream> {
             fn new() -> Self {
                 SelectBuilder {
                     outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<#ty>())],
-                    func: node_func! {
+                    func: donburako::macros::node_func! {
                         let mut op_lock = op.lock().await;
                         let cons = op_lock.get_container(self_.inputs(), exec_id).await?;
                         op_lock.add_container(self_.outputs(), exec_id, cons).await?;
@@ -96,7 +96,7 @@ mod tests {
                     fn new() -> Self {
                         SelectBuilder {
                             outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<Option <i32> >())],
-                            func: node_func! {
+                            func: donburako::macros::node_func! {
                                 let mut op_lock = op.lock().await;
                                 let cons = op_lock.get_container(self_.inputs(), exec_id).await?;
                                 op_lock.add_container(self_.outputs(), exec_id, cons).await?;

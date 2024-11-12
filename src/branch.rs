@@ -46,18 +46,18 @@ pub fn branch_builder_parse(input: ParseStream) -> Result<TokenStream> {
             fn new() -> Self {
                 BranchBuilder {
                     outputs: vec![#( #outputs ),*],
-                    func: node_func! {
-                        take! {
+                    func: donburako::macros::node_func! {
+                        donburako::macros::take! {
                             exec_id | self_.inputs() | self_.manage_cnt()
                                 => state: bool
                         }
                         if state {
-                            store!{
+                            donburako::macros::store!{
                                 exec_id | &self_.outputs()[..#true_cnt]
                                     #( #true_output )*
                             }
                         } else {
-                            store!{
+                            donburako::macros::store!{
                                 exec_id | &self_.outputs()[#true_cnt..]
                                     #( #false_output )*
                             }
@@ -128,18 +128,18 @@ mod tests {
                 fn new() -> Self {
                     BranchBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<()>()), std::sync::Arc::new(donburako::edge::Edge::new::<()>()), std::sync::Arc::new(donburako::edge::Edge::new::<()>())],
-                        func: node_func! {
-                            take! {
+                        func: donburako::macros::node_func! {
+                            donburako::macros::take! {
                                 exec_id | self_.inputs() | self_.manage_cnt()
                                     => state: bool
                             }
                             if state {
-                                store!{
+                                donburako::macros::store!{
                                     exec_id | &self_.outputs()[..1usize]
                                         => ()
                                 }
                             } else {
-                                store!{
+                                donburako::macros::store!{
                                     exec_id | &self_.outputs()[1usize..]
                                         => ()
                                         => ()

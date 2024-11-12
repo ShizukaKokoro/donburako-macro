@@ -28,7 +28,7 @@ pub fn input_parse(input: ParseStream) -> Result<TokenStream> {
     }
 
     Ok(quote! {
-        take! {
+        donburako::macros::take! {
             exec_id | self_.inputs() | self_.manage_cnt()
                 #(#stmts)*
         }
@@ -53,7 +53,7 @@ pub fn output_parse(input: ParseStream) -> Result<TokenStream> {
     }
 
     Ok(quote! {
-        store! {
+        donburako::macros::store! {
             exec_id | self_.outputs()
                 #(#stmts)*
         }
@@ -72,7 +72,7 @@ mod tests {
         };
         let result = input_parse.parse2(input).unwrap();
         let expected = quote! {
-            take! {
+            donburako::macros::take! {
                 exec_id | self_.inputs() | self_.manage_cnt()
                     => n: i32
             }
@@ -87,7 +87,7 @@ mod tests {
         };
         let result = input_impl(input).to_string();
         let expected = quote! {
-            take! {
+            donburako::macros::take! {
                 exec_id | self_.inputs() | self_.manage_cnt()
                     => _: ()
                     => arg_0to1_int: fizz::i32
@@ -105,7 +105,7 @@ mod tests {
         };
         let result = output_parse.parse2(input).unwrap();
         let expected = quote! {
-            store!{
+            donburako::macros::store!{
                 exec_id | self_.outputs()
                     => n
             }
@@ -120,7 +120,7 @@ mod tests {
         };
         let result = output_impl(input).to_string();
         let expected = quote! {
-            store!{
+            donburako::macros::store!{
                 exec_id | self_.outputs()
                     => 42
                     => "hello"

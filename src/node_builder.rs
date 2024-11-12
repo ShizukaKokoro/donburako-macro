@@ -106,7 +106,7 @@ impl<'a> VisitMut for AwaitFinder<'a> {
                     label: None,
                     block: syn::Block {
                         brace_token: syn::token::Brace::default(),
-                        stmts: vec![let_stmts, parse_quote!(output!#vars;)],
+                        stmts: vec![let_stmts, parse_quote!(donburako::macros::output!#vars;)],
                     },
                 });
             }
@@ -170,7 +170,7 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
         return Err(error);
     }
     let func_stmts = func.block.stmts.clone();
-    // 再帰的に return を探して、それを output! に変換する(func_rtn_types との数のチェックを行う)
+    // 再帰的に return を探して、それを donburako::macros::output! に変換する(func_rtn_types との数のチェックを行う)
     let func_name_str = func_name.to_string();
     let build_fn: syn::ImplItemFn = if !args_type.is_empty() {
         let ifs = args_type
@@ -294,8 +294,8 @@ pub fn node_builder_parse(input: ParseStream) -> Result<TokenStream> {
                             std::sync::Arc::new(donburako::edge::Edge::new::<#func_rtn_types>())
                         ),*
                     ],
-                    func: node_func! {
-                        input!(#(#func_args),*);
+                    func: donburako::macros::node_func! {
+                        donburako::macros::input!(#(#func_args),*);
                         #(#func_stmts)*
                     },
                     is_blocking: #is_blocking,
@@ -345,13 +345,13 @@ mod tests {
                 fn new() -> Self {
                     DivideBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<i32>()), std::sync::Arc::new(donburako::edge::Edge::new::<i32>())],
-                        func: node_func! {
-                            input!(n: i32);
+                        func: donburako::macros::node_func! {
+                            donburako::macros::input!(n: i32);
                             println!("divide: {}", n);
                             sleep(Duration::from_secs(1)).await;
                             {
                                 let (_r_0, _r_1): (i32, i32) = (n, n);
-                                output!(_r_0, _r_1);
+                                donburako::macros::output!(_r_0, _r_1);
                             };
                         },
                         is_blocking: false,
@@ -417,12 +417,12 @@ mod tests {
                 fn new() -> Self {
                     IsEvenBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<bool>())],
-                        func: node_func! {
-                            input!(n: i32);
+                        func: donburako::macros::node_func! {
+                            donburako::macros::input!(n: i32);
                             let result = n % 2 == 0;
                             {
                                 let _r_0: bool = result;
-                                output!(_r_0);
+                                donburako::macros::output!(_r_0);
                             };
                         },
                         is_blocking: true,
@@ -487,11 +487,11 @@ mod tests {
                 fn new() -> Self {
                     DoubleBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::< Option<i32> >())],
-                        func: node_func! {
-                            input!(n: i32);
+                        func: donburako::macros::node_func! {
+                            donburako::macros::input!(n: i32);
                             {
                                 let _r_0: Option<i32> = Some(n * 2);
-                                output!(_r_0);
+                                donburako::macros::output!(_r_0);
                             };
                         },
                         is_blocking: true,
@@ -556,11 +556,11 @@ mod tests {
                 fn new() -> Self {
                     AddBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<i32>())],
-                        func: node_func! {
-                            input!(a: i32, b: i32);
+                        func: donburako::macros::node_func! {
+                            donburako::macros::input!(a: i32, b: i32);
                             {
                                 let _r_0: i32 = a + b;
-                                output!(_r_0);
+                                donburako::macros::output!(_r_0);
                             };
                         },
                         is_blocking: true,
@@ -630,12 +630,12 @@ mod tests {
                 fn new() -> Self {
                     DivideStrioBuilder {
                         outputs: vec![std::sync::Arc::new(donburako::edge::Edge::new::<Arc<i32> >()), std::sync::Arc::new(donburako::edge::Edge::new::<Arc<i32> >())],
-                        func: node_func! {
-                            input!(port: Arc<i32>);
+                        func: donburako::macros::node_func! {
+                            donburako::macros::input!(port: Arc<i32>);
                             let port_clone = port.clone();
                             {
                                 let (_r_0, _r_1): (Arc<i32>, Arc<i32>) = (port, port_clone);
-                                output!(_r_0, _r_1);
+                                donburako::macros::output!(_r_0, _r_1);
                             };
                         },
                         is_blocking: true,
